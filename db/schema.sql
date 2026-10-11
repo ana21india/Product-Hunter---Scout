@@ -65,3 +65,14 @@ CREATE TABLE IF NOT EXISTS run_log (
   note         text
 );
 
+
+-- 7. LinkedIn profiles found by Gemini search (only kept if they pass strict checks)
+CREATE TABLE IF NOT EXISTS founder_links (
+  post_id    text NOT NULL REFERENCES launches(post_id) ON DELETE CASCADE,
+  maker_id   text NOT NULL,
+  maker_name text NOT NULL,
+  url        text,
+  evidence   text,
+  checked_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (post_id, maker_id)
+);

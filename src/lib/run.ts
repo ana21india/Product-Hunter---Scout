@@ -1,6 +1,7 @@
 ﻿import { q } from "./db";
 import * as PH from "./ph";
-import { judgeRelevance, writeAngles, GEMINI_MODEL, CATEGORIES } from "./gemini";
+import { judgeRelevance, writeAngles, findLinkedIn, GEMINI_MODEL, CATEGORIES } from "./gemini";
+import { getDashboard } from "./data";
 
 const DAY = 864e5;
 const WINDOW = "interval '7 days'";
@@ -180,6 +181,34 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       } catch (e) { angleFailed += batch.length; }
     });
     if (angleFailed) notes.push(`Angles unavailable for ${angleFailed} launches (retry next run)`);
+
+    // Phase F: LinkedIn profiles for the founders of the top 15 (Gemini search, kept only if it passes strict checks).
+    const top = (await getDashboard()).items.slice(0, 15).map((i) => i.postId);
+    if (top.length) {
+      const ls = await q(
+        `SELECT l.post_id AS id, l.name, l.tagline, l.website, l.makers FROM launches l WHERE l.post_id = ANY($1::text[])`, [top],
+      );
+      const done = new Set((await q(`SELECT post_id || ':' || maker_id AS k FROM founder_links WHERE post_id = ANY($1::text[])`, [top])).map((r: any) => r.k));
+      const jobs: { id: string; makerId: string; founder: string; product: string; tagline: string | null; website: string | null }[] = [];
+      for (const l of ls) {
+        const makers = (l.makers as any[]).filter((m) => m.id !== "0" && m.name && m.name !== "[REDACTED]" && !/linkedin\.com/i.test(m.websiteUrl ?? "")).slice(0, 3);
+        for (const m of makers) if (!done.has(`${l.id}:${m.id}`)) jobs.push({ id: l.id, makerId: m.id, founder: m.name, product: l.name, tagline: l.tagline, website: l.website });
+      }
+      log(`LinkedIn search: ${jobs.length} founders`);
+      let skipped = 0;
+      await pool(jobs, 3, async (j) => {
+        if (opts.deadlineMs && Date.now() > runStartMs + opts.deadlineMs) { skipped++; return; }
+        try {
+          const r = await findLinkedIn(j);
+          await q(
+            `INSERT INTO founder_links (post_id, maker_id, maker_name, url, evidence) VALUES ($1,$2,$3,$4,$5)
+             ON CONFLICT (post_id, maker_id) DO NOTHING`,
+            [j.id, j.makerId, j.founder, r.url, r.evidence],
+          );
+        } catch { skipped++; }
+      });
+      if (skipped) notes.push(`LinkedIn search will continue next run for ${skipped} founders`);
+    }
   } catch (e: any) {
     if (e instanceof PH.BudgetError) { status = "partial"; notes.push(`Stopped early: ${e.message}. The next run continues from here.`); }
     else { status = "failed"; error = String(e?.message ?? e); }

@@ -1,5 +1,5 @@
 ﻿export const GEMINI_MODEL = "gemini-3.8-flash";
-const URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const CATEGORIES = ["Project management", "HR tech", "Developer productivity", "Team communication"] as const;
@@ -10,7 +10,7 @@ export const KAVYA_PRODUCT = "A B2B SaaS product that helps remote teams run asy
 async function callJson(prompt: string, schema: unknown): Promise<any> {
   let lastErr = "";
   for (let attempt = 0; attempt < 5; attempt++) {
-    const r = await fetch(URL, {
+    const r = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY as string },
       body: JSON.stringify({
@@ -88,3 +88,49 @@ ${list}`;
   };
   return (await callJson(prompt, schema)) as { id: string; one_liner: string; angle: string }[];
 }
+
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// A found profile is kept only if the address is a real linkedin.com/in/ profile whose handle contains the founder's first and last
+// name, and the evidence text mentions the product. Anything weaker is thrown away, so the card simply shows nothing.
+export function verifyLinkedIn(url: string, evidence: string, founder: string, product: string, website: string | null): string | null {
+  const m = url.trim().match(/^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/([A-Za-z0-9%_-]{3,100})\/?(?:[?#].*)?$/);
+  if (!m) return null;
+  const handle = norm(decodeURIComponent(m[1]).replace(/-/g, " ")).replace(/ /g, "");
+  const parts = norm(founder).split(" ").filter((t) => t.length >= 2);
+  if (parts.length < 2) return null;
+  if (!handle.includes(parts[0]) || !handle.includes(parts[parts.length - 1])) return null;
+  const ev = norm(evidence);
+  const prod = norm(product);
+  let host = "";
+  try { host = norm(new URL(website ?? "").hostname.replace(/^www\./, "").split(".")[0]); } catch {}
+  if (!(prod.length >= 3 && ev.includes(prod)) && !(host.length >= 4 && ev.includes(host))) return null;
+  return `https://www.linkedin.com/in/${m[1]}`;
+}
+
+// Ask Gemini (with Google Search) for a founder's LinkedIn profile. Returns a verified URL or null.
+export async function findLinkedIn(p: { founder: string; product: string; tagline: string | null; website: string | null }) {
+  const prompt = `Use Google Search to find the LinkedIn profile of ${p.founder}, a founder or maker of the product "${p.product}"${p.tagline ? ` (${p.tagline})` : ""}${p.website ? `, website ${p.website}` : ""}.
+Only answer if you found a linkedin.com/in/ profile for this exact person, linked to this product or company. Do not guess.
+Reply in exactly two lines:
+URL: <the linkedin.com/in/ address, or NONE>
+EVIDENCE: <the profile headline or company you saw, quoted from the result, or NONE>`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY as string },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1 } }),
+    });
+    if (r.status === 429 || r.status >= 500) { await sleep(2000 * 2 ** attempt); continue; }
+    if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
+    const j: any = await r.json();
+    const text: string = j.candidates?.[0]?.content?.parts?.map((x: any) => x.text ?? "").join("") ?? "";
+    const url = text.match(/URL:\s*(\S+)/i)?.[1] ?? "";
+    const evidence = text.match(/EVIDENCE:\s*([\s\S]*)/i)?.[1]?.trim() ?? "";
+    if (!url || /^none$/i.test(url)) return { url: null, evidence: evidence.slice(0, 300) };
+    const ok = verifyLinkedIn(url.replace(/[)>.,;]+$/, ""), evidence, p.founder, p.product, p.website);
+    return { url: ok, evidence: evidence.slice(0, 300) };
+  }
+  throw new Error("Gemini search failed");
+}
+

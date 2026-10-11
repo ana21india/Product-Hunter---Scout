@@ -18,7 +18,7 @@ const httpUrl = (u: string | null | undefined) => {
 };
 
 // Suggested links come only from real Product Hunt data. Anything missing is simply left out. Nothing is guessed or searched for.
-export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[]) {
+export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[], found: { name: string; url: string }[] = []) {
   const links: { label: string; url: string }[] = [];
   const launch = httpUrl(launchUrl);
   if (launch) links.push({ label: "Product Hunt launch", url: launch.split("?")[0] });
@@ -32,6 +32,10 @@ export function buildLinks(launchUrl: string | null, website: string | null, mak
     if (m.twitterUsername && /^[A-Za-z0-9_]{1,15}$/.test(m.twitterUsername)) links.push({ label: `${who} on X`, url: `https://x.com/${m.twitterUsername}` });
     const p = httpUrl(m.url);
     if (p && /(^|\.)producthunt\.com$/i.test(new URL(p).hostname)) links.push({ label: `${who} on Product Hunt`, url: p.split("?")[0] });
+  }
+  for (const f of found) {
+    if (links.some((l) => l.url === f.url)) continue;
+    links.push({ label: `${solo ? "Founder" : f.name} on LinkedIn (found by search, please confirm)`, url: f.url });
   }
   return links;
 }
@@ -60,6 +64,11 @@ export async function getDashboard(): Promise<Dashboard> {
   })).sort((a, b) => b.votes - a.votes);
 
   const byId = new Map(ready.map((r) => [r.post_id, r]));
+  const foundRows = ready.length
+    ? await q(`SELECT post_id, maker_name, url FROM founder_links WHERE url IS NOT NULL AND post_id = ANY($1::text[])`, [ready.map((r) => r.post_id)])
+    : [];
+  const foundBy = new Map<string, { name: string; url: string }[]>();
+  for (const f of foundRows) foundBy.set(f.post_id, [...(foundBy.get(f.post_id) ?? []), { name: f.maker_name, url: f.url }]);
   const scored = scoreLaunches(ready.map((r) => ({
     postId: r.post_id as string, votes: r.votes_count as number, makerComments: r.maker_comment_count as number, createdAt: new Date(r.created_at).toISOString(),
   })));
@@ -75,7 +84,7 @@ export async function getDashboard(): Promise<Dashboard> {
       rank: s.rank, tier: s.tier, finalScore: s.finalScore, upvoteScore: s.upvoteScore, makerScore: s.makerScore,
       upvotePoints: s.upvotePoints, makerPoints: s.makerPoints, daysSince: s.daysSince, daysLeft: s.daysLeft, closing: s.closing,
       rationale: rationale(s), firstSeenAt: new Date(r.first_seen_at).toISOString(),
-      links: buildLinks(r.url, r.website, makers),
+      links: buildLinks(r.url, r.website, makers, foundBy.get(s.postId) ?? []),
     };
   });
 
