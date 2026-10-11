@@ -172,7 +172,7 @@ export default function Page() {
 
         <main className="main">
           {loadError && <div className="banner err" role="alert">{loadError}</div>}
-          {failed && <div className="banner warn" role="status">Could not fetch new launches; showing last run ({fmtTime(run?.lastGoodAt ?? null)}).{run?.latestError ? "" : ""}</div>}
+          {failed && run?.lastGoodAt && <div className="banner warn" role="status">Could not fetch new launches; showing last run ({fmtTime(run.lastGoodAt)}).</div>}
           {partial && <div className="banner warn" role="status">Partly refreshed. {run?.latestNote}</div>}
           {showSnapshot && <div className="banner info" role="status">Showing the starting snapshot taken from Product Hunt at {fmtTime(run?.lastGoodAt ?? null)}. Press Run scout for fresh data.</div>}
           {!!data?.pending && <div className="banner info" role="status">{data.pending} launches are still being processed and will appear after the next run.</div>}
@@ -335,7 +335,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
       <p className="angle"><strong>Suggested angle:</strong>{" "}
         {it.angleState === "ok" && it.angle}
         {it.angleState === "thin" && "Angle unavailable"}
-        {it.angleState === "missing" && "Not ready yet. It is written during Run scout; press Run scout again if it stays empty."}
+        {it.angleState === "missing" && "Angle unavailable, retry (press Run scout)"}
       </p>
       {it.suggestedPeople.length > 0 && (
         <div className="suggest">
