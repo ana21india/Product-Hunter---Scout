@@ -85,7 +85,7 @@ export async function fetchMakersAndCounts(slug: string, commentsCount: number) 
     else if (makerIds.has(uid)) maker++;
   };
   if (commentsCount <= 0) {
-    const d: any = await ph(`query($s:String){ post(slug:$s){ makers{ id name username } } }`, { s: slug });
+    const d: any = await ph(`query($s:String){ post(slug:$s){ makers{ id name username websiteUrl twitterUsername url } } }`, { s: slug });
     return { makers: (d.post?.makers ?? []) as typeof makers, total, maker, unattributed };
   }
   const pageSize = Math.min(15, commentsCount);
@@ -94,7 +94,7 @@ export async function fetchMakersAndCounts(slug: string, commentsCount: number) 
   let first = true;
   do {
     const d: any = await ph(
-      `query($s:String,$a:String){ post(slug:$s){ ${first ? "makers{ id name username }" : ""} comments(first:${pageSize}, after:$a){ pageInfo{hasNextPage endCursor}
+      `query($s:String,$a:String){ post(slug:$s){ ${first ? "makers{ id name username websiteUrl twitterUsername url }" : ""} comments(first:${pageSize}, after:$a){ pageInfo{hasNextPage endCursor}
         edges{ node{ id userId replies(first:${replySize}){ pageInfo{hasNextPage endCursor} edges{ node{ userId } } } } } } } }`,
       { s: slug, a: after },
     );
@@ -133,7 +133,7 @@ export type MakerCounts = { makers: { id: string; name: string; username: string
 export async function fetchMakersAndCountsBatch(items: { id: string; slug: string; cc: number }[]) {
   const out = new Map<string, MakerCounts>();
   const body = items.map((it, i) =>
-    `p${i}: post(id:"${it.id}"){ makers{ id name username } comments(first:10){ pageInfo{hasNextPage} edges{ node{ userId replies(first:5){ pageInfo{hasNextPage} edges{ node{ userId } } } } } } }`,
+    `p${i}: post(id:"${it.id}"){ makers{ id name username websiteUrl twitterUsername url } comments(first:10){ pageInfo{hasNextPage} edges{ node{ userId replies(first:5){ pageInfo{hasNextPage} edges{ node{ userId } } } } } } }`,
   ).join(" ");
   const d: any = await ph(`{ ${body} }`);
   for (let i = 0; i < items.length; i++) {
@@ -150,7 +150,7 @@ export async function fetchMakersAndCountsBatch(items: { id: string; slug: strin
     let makers = p.makers ?? [];
     if (overflow) { out.set(it.id, await fetchMakersAndCounts(it.slug, it.cc)); continue; }
     if (makers.some((m: any) => m.id === "0")) {
-      const s: any = await ph(`query($s:String){ post(slug:$s){ makers{ id name username } } }`, { s: it.slug });
+      const s: any = await ph(`query($s:String){ post(slug:$s){ makers{ id name username websiteUrl twitterUsername url } } }`, { s: it.slug });
       makers = s.post?.makers ?? makers;
     }
     const ids = new Set<string>(makers.map((m: any) => m.id));
@@ -160,3 +160,4 @@ export async function fetchMakersAndCountsBatch(items: { id: string; slug: strin
   }
   return out;
 }
+

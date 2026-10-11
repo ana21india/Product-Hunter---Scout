@@ -138,7 +138,7 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       `SELECT l.post_id AS id, l.slug, l.comments_count AS cc FROM launches l
        JOIN relevance r ON r.post_id=l.post_id AND r.relevant
        LEFT JOIN maker_comments m ON m.post_id=l.post_id
-       WHERE l.created_at > now() - ${WINDOW} AND (m.post_id IS NULL OR m.comments_total_seen <> l.comments_count)`,
+       WHERE l.created_at > now() - ${WINDOW} AND (m.post_id IS NULL OR m.comments_total_seen <> l.comments_count OR l.makers::text NOT LIKE '%"url"%')`,
     );
     log(`Maker comments: ${need.length} launches to (re)count`);
     await pool(chunks(need, 15), 3, async (batch: any[]) => {
@@ -190,5 +190,6 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
     [runId, status, error ?? null, newLaunches, refreshed, note || null]);
   return { status, newLaunches, refreshed, note, error };
 }
+
 
 

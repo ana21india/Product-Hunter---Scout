@@ -7,8 +7,34 @@ export type Item = {
   category: string; founders: string; votes: number; makerComments: number; createdAt: string;
   rank: number; tier: string; finalScore: number; upvoteScore: number; makerScore: number;
   upvotePoints: number; makerPoints: number; daysSince: number; daysLeft: number; closing: boolean;
-  rationale: string; firstSeenAt: string;
+  rationale: string; firstSeenAt: string; links: { label: string; url: string }[];
 };
+
+type Maker = { id: string; name: string; websiteUrl?: string | null; twitterUsername?: string | null; url?: string | null };
+
+const httpUrl = (u: string | null | undefined) => {
+  if (!u) return null;
+  try { const p = new URL(u.trim()); return p.protocol === "http:" || p.protocol === "https:" ? p.toString() : null; } catch { return null; }
+};
+
+// Suggested links come only from real Product Hunt data. Anything missing is simply left out. Nothing is guessed or searched for.
+export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[]) {
+  const links: { label: string; url: string }[] = [];
+  const launch = httpUrl(launchUrl);
+  if (launch) links.push({ label: "Product Hunt launch", url: launch.split("?")[0] });
+  const site = httpUrl(website);
+  if (site) links.push({ label: "Product website", url: /(^|\.)producthunt\.com$/i.test(new URL(site).hostname) ? site.split("?")[0] : site });
+  const solo = makers.length === 1;
+  for (const m of makers) {
+    const who = solo ? "Founder" : m.name;
+    const w = httpUrl(m.websiteUrl);
+    if (w) links.push({ label: /(^|\.)linkedin\.com\//i.test(w.replace(/^https?:\/\//, "")) ? `${who} on LinkedIn` : `${who} website`, url: w });
+    if (m.twitterUsername && /^[A-Za-z0-9_]{1,15}$/.test(m.twitterUsername)) links.push({ label: `${who} on X`, url: `https://x.com/${m.twitterUsername}` });
+    const p = httpUrl(m.url);
+    if (p && /(^|\.)producthunt\.com$/i.test(new URL(p).hostname)) links.push({ label: `${who} on Product Hunt`, url: p.split("?")[0] });
+  }
+  return links;
+}
 export type FilteredOut = { postId: string; name: string; tagline: string | null; url: string | null; reason: string | null; votes: number; createdAt: string };
 export type RunInfo = {
   lastGoodAt: string | null; lastGoodWasSnapshot: boolean; latestStatus: string | null; latestAt: string | null;
@@ -19,7 +45,7 @@ export type Dashboard = { items: Item[]; filteredOut: FilteredOut[]; pending: nu
 // Reads only from the database. Scores and ranks are computed here, from the current eligible set, on every read.
 export async function getDashboard(): Promise<Dashboard> {
   const rows = await q(
-    `SELECT l.post_id, l.slug, l.name, l.tagline, l.url, l.votes_count, l.created_at, l.first_seen_at, l.makers, l.category,
+    `SELECT l.post_id, l.slug, l.name, l.tagline, l.url, l.website, l.votes_count, l.created_at, l.first_seen_at, l.makers, l.category,
             r.relevant, r.reason, m.maker_comment_count, a.one_liner, a.angle, a.status AS angle_status
      FROM launches l JOIN relevance r ON r.post_id = l.post_id
      LEFT JOIN maker_comments m ON m.post_id = l.post_id
@@ -39,7 +65,7 @@ export async function getDashboard(): Promise<Dashboard> {
   })));
   const items: Item[] = scored.map((s) => {
     const r = byId.get(s.postId)!;
-    const makers = (r.makers as { id: string; name: string }[]).filter((m) => m.id !== "0" && m.name && m.name !== "[REDACTED]");
+    const makers = (r.makers as Maker[]).filter((m) => m.id !== "0" && m.name && m.name !== "[REDACTED]");
     return {
       postId: s.postId, slug: r.slug, name: r.name, tagline: r.tagline, url: r.url,
       oneLiner: r.one_liner ?? null, angle: r.angle ?? null,
@@ -49,6 +75,7 @@ export async function getDashboard(): Promise<Dashboard> {
       rank: s.rank, tier: s.tier, finalScore: s.finalScore, upvoteScore: s.upvoteScore, makerScore: s.makerScore,
       upvotePoints: s.upvotePoints, makerPoints: s.makerPoints, daysSince: s.daysSince, daysLeft: s.daysLeft, closing: s.closing,
       rationale: rationale(s), firstSeenAt: new Date(r.first_seen_at).toISOString(),
+      links: buildLinks(r.url, r.website, makers),
     };
   });
 

@@ -328,6 +328,13 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
         {it.angleState === "thin" && "Angle unavailable"}
         {it.angleState === "missing" && "Unavailable, retry (press Run scout)"}
       </p>
+      {it.links.length > 0 && (
+        <p className="links"><strong>Suggested links:</strong>{" "}
+          {it.links.map((l, i) => (
+            <span key={l.url + l.label}>{i > 0 && " · "}<a href={l.url} target="_blank" rel="noreferrer">{l.label}</a></span>
+          ))}
+        </p>
+      )}
     </article>
   );
 }
