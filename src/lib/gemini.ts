@@ -75,7 +75,7 @@ For each launch below write:
 - "angle": a short story of two to three sentences, in this order: (1) what the launch's team does, taken from its description; (2) the standup problem a team like that typically faces; (3) how async standup reports would fit in. Plain words, no bullet points.
   Example of the shape (do not copy its facts): "Velozity gives remote teams a shared virtual office with chat, tasks and AI agents. When people work across time zones, live standups are hard to schedule and updates get lost in chat. Async standup reports would give each person a short daily update the whole team can read when it suits them."
 Rules for "angle": mention remote or distributed work ONLY if the launch's own text says so. Never include statistics, percentages, results, team sizes or customer claims, because none are supplied. Never mention a person's name, never write "Kavya", and never start with the word "angle". Use only facts given in this prompt. Do not invent features, customers or numbers.
-If the information is too thin to suggest a real angle, set "angle" to exactly "angle unavailable".
+Set "angle" to exactly "angle unavailable" ONLY when the tagline and description together say almost nothing about what the product does (fewer than about 15 words of real information). Do NOT use it just because the product is for developers, individuals or AI agents: in that case write the story about the team of people who build with or use it.
 Keep it short, plain and specific. Return one entry per launch with the same id.
 
 Launches:
