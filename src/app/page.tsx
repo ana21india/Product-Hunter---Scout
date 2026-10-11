@@ -137,12 +137,6 @@ export default function Page() {
               All apps <span className="count">{items.length}</span>
             </button>
           </nav>
-          <details className="card rule" open={ruleOpen} onToggle={(e) => setRuleOpen((e.target as HTMLDetailsElement).open)}>
-            <summary>How scores are made</summary>
-            <p><strong>Final score = 60% upvotes + 40% maker comments.</strong></p>
-            <p>Each is measured against the highest in the current 7-day set (highest = 100). Maker comments are comments and replies written by the product&apos;s own makers, never all community comments.</p>
-            <p>Ties: more maker comments first, then more upvotes. Tiers by rank: 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13+ Lower priority.</p>
-          </details>
           <details className="card filtered">
             <summary>Filtered out ({data?.filteredOut.length ?? 0})</summary>
             <p className="muted">Launches Gemini judged not relevant for B2B teams. They are never ranked.</p>
@@ -172,6 +166,13 @@ export default function Page() {
           {data && !items.length && failed && !run?.lastGoodAt && (
             <div className="banner err" role="alert">Product Hunt could not be reached and there is no saved list yet. Please try again shortly.</div>
           )}
+
+          <details className="card rule" open={ruleOpen} onToggle={(e) => setRuleOpen((e.target as HTMLDetailsElement).open)}>
+            <summary>How scores are made</summary>
+            <p><strong>Final score = 60% upvotes + 40% maker comments.</strong></p>
+            <p>Each is measured against the highest in the current 7-day set (highest = 100). Maker comments are comments and replies written by the product&apos;s own makers, never all community comments.</p>
+            <p>Ties: more maker comments first, then more upvotes. Tiers by rank: 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13+ Lower priority.</p>
+          </details>
 
           <section className="card controls" aria-label="Search, filter and sort">
             <div className="field grow">

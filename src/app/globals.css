@@ -41,6 +41,7 @@ h1, h2, h3 { line-height: 1.25; margin: 0; }
 .navbtn.on { background: var(--bar); font-weight: 600; }
 .navbtn:hover { border-color: var(--line); }
 .count { background: var(--bar); border-radius: 999px; padding: 0 10px; font-size: 0.85rem; }
+.rule { margin-bottom: 12px; }
 .rule summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
 .filtered summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
 .filtered ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
