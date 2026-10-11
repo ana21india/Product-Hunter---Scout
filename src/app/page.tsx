@@ -321,7 +321,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
       <dl className="meta">
         <div><dt>Category</dt><dd>{it.category}</dd></div>
         <div>
-          <dt>{it.founderNames.length > 1 ? "Founders" : "Founder"}</dt>
+          <dt>{it.founderNames.length > 1 ? "Makers" : "Maker"}</dt>
           <dd title={it.founders}>
             {it.founderNames.length === 0 ? "Not listed" : it.founderNames.slice(0, 3).join(", ")}
             {it.founderNames.length > 3 && <span className="muted"> +{it.founderNames.length - 3} more</span>}
