@@ -1,0 +1,11 @@
+import { q } from "../src/lib/db";
+const n = async (s: string) => (await q(s))[0].n;
+console.log("launches stored (7d):", await n(`SELECT count(*)::int n FROM launches WHERE created_at > now() - interval '7 days'`));
+console.log("relevant:", await n(`SELECT count(*)::int n FROM relevance r JOIN launches l USING(post_id) WHERE r.relevant AND l.created_at > now() - interval '7 days'`));
+console.log("filtered out:", await n(`SELECT count(*)::int n FROM relevance r JOIN launches l USING(post_id) WHERE NOT r.relevant AND l.created_at > now() - interval '7 days'`));
+console.log("with maker counts:", await n(`SELECT count(*)::int n FROM maker_comments m JOIN launches l USING(post_id) JOIN relevance r USING(post_id) WHERE r.relevant AND l.created_at > now() - interval '7 days'`));
+console.log("with angles:", await n(`SELECT count(*)::int n FROM angles a JOIN launches l USING(post_id) WHERE l.created_at > now() - interval '7 days'`));
+console.log("makers with links backfilled:", await n(`SELECT count(*)::int n FROM launches WHERE makers::text LIKE '%"url"%' AND created_at > now() - interval '7 days'`));
+const t = await q(`SELECT l.category c, count(*)::int n FROM relevance r JOIN launches l USING(post_id) WHERE r.relevant AND l.created_at > now() - interval '7 days' GROUP BY 1 ORDER BY 2 DESC`);
+console.log("by category:", t.map((x: any) => `${x.c}=${x.n}`).join(", "));
+console.log("last runs:", JSON.stringify(await q(`SELECT id, status, new_launches, refreshed, left(note,60) note FROM run_log ORDER BY id DESC LIMIT 4`)));

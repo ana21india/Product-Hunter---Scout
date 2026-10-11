@@ -100,7 +100,10 @@ input[type="search"], select { min-height: 44px; padding: 8px 10px; border-radiu
 .band.strong { color: var(--text); font-weight: 600; margin-top: 16px; }
 .peek h3 { font-size: 1rem; margin-bottom: 6px; }
 .peek ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
-.modal.wide { max-width: min(760px, calc(100vw - 24px)); width: 100%; }
+.modal.wide { max-width: min(980px, calc(100vw - 24px)); width: 100%; }
+.explain p { margin: 8px 0 0; }
+table { min-width: 0; }
+thead th { min-width: 130px; }
 .cmpbar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12); }
 .cmpactions { display: flex; gap: 8px; }
 .cmphead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }

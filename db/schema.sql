@@ -76,3 +76,10 @@ CREATE TABLE IF NOT EXISTS founder_links (
   checked_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (post_id, maker_id)
 );
+
+-- 8. Company LinkedIn page found on the product's own website
+CREATE TABLE IF NOT EXISTS site_links (
+  post_id          text PRIMARY KEY REFERENCES launches(post_id) ON DELETE CASCADE,
+  linkedin_company text,
+  checked_at       timestamptz NOT NULL DEFAULT now()
+);

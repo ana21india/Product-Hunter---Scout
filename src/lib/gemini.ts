@@ -68,11 +68,11 @@ ${list}`;
 // One-line description and outreach angle, grounded only in the supplied facts.
 export async function writeAngles(items: LaunchIn[]) {
   const list = items.map((i) => `- id ${i.id} | ${i.name} | tagline: ${clip(i.tagline, 200)} | description: ${clip(i.description, 500)}`).join("\n");
-  const prompt = `Kavya leads partnerships at: ${KAVYA_PRODUCT}
+  const prompt = `Our company sells this product: ${KAVYA_PRODUCT}
 For each launch below write:
 - "one_liner": one plain line saying what the product does, based only on its tagline and description.
-- "angle": one or two short sentences on how Kavya's product could complement theirs for a partnership.
-Use only facts given in this prompt. Do not invent features, customers or numbers.
+- "angle": one or two short sentences describing how teams using THAT launch's product could use async standups alongside it. Write it as a usage angle for our async standup product, in plain words. Example of the style (do not copy its facts): "Teams using X to manage tasks can sync their daily progress into async standup reports automatically."
+Rules for "angle": never mention a person's name, never write "Kavya", never start with the word "angle", and never describe our product as something we "could" offer; just say what teams can do. Use only facts given in this prompt. Do not invent features, customers or numbers.
 If the information is too thin to suggest a real angle, set "angle" to exactly "angle unavailable".
 Keep it short, plain and specific. Return one entry per launch with the same id.
 

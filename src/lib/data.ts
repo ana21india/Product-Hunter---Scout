@@ -19,21 +19,19 @@ const httpUrl = (u: string | null | undefined) => {
   try { const p = new URL(u.trim()); return p.protocol === "http:" || p.protocol === "https:" ? p.toString() : null; } catch { return null; }
 };
 
-// Suggested links come only from real Product Hunt data. Anything missing is simply left out. Nothing is guessed or searched for.
-export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[]) {
+// Links shown on a card: the product's own website, and LinkedIn pages that come from real data
+// (the company page found on the product's website, or a LinkedIn address a founder listed on Product Hunt).
+// Anything missing is simply left out. Nothing is guessed or searched for.
+export function buildLinks(website: string | null, makers: Maker[], companyLinkedIn: string | null = null) {
   const links: { label: string; url: string }[] = [];
-  const launch = httpUrl(launchUrl);
-  if (launch) links.push({ label: "Product Hunt launch", url: launch.split("?")[0] });
   const site = httpUrl(website);
   if (site) links.push({ label: "Product website", url: /(^|\.)producthunt\.com$/i.test(new URL(site).hostname) ? site.split("?")[0] : site });
+  const co = httpUrl(companyLinkedIn);
+  if (co) links.push({ label: "Company on LinkedIn", url: co });
   const solo = makers.length === 1;
   for (const m of makers) {
-    const who = solo ? "Founder" : m.name;
     const w = httpUrl(m.websiteUrl);
-    if (w) links.push({ label: /(^|\.)linkedin\.com\//i.test(w.replace(/^https?:\/\//, "")) ? `${who} on LinkedIn` : `${who} website`, url: w });
-    if (m.twitterUsername && /^[A-Za-z0-9_]{1,15}$/.test(m.twitterUsername)) links.push({ label: `${who} on X`, url: `https://x.com/${m.twitterUsername}` });
-    const p = httpUrl(m.url);
-    if (p && /(^|\.)producthunt\.com$/i.test(new URL(p).hostname)) links.push({ label: `${who} on Product Hunt`, url: p.split("?")[0] });
+    if (w && /(^|\.)linkedin\.com$/i.test(new URL(w).hostname)) links.push({ label: `${solo ? "Founder" : m.name} on LinkedIn`, url: w });
   }
   return links;
 }
@@ -65,6 +63,10 @@ export async function getDashboard(): Promise<Dashboard> {
   const foundRows = ready.length
     ? await q(`SELECT post_id, maker_name, url FROM founder_links WHERE url IS NOT NULL AND post_id = ANY($1::text[])`, [ready.map((r) => r.post_id)])
     : [];
+  const siteRows = ready.length
+    ? await q(`SELECT post_id, linkedin_company FROM site_links WHERE linkedin_company IS NOT NULL AND post_id = ANY($1::text[])`, [ready.map((r) => r.post_id)])
+    : [];
+  const siteBy = new Map<string, string>(siteRows.map((r: any) => [r.post_id, r.linkedin_company]));
   const foundBy = new Map<string, { name: string; url: string }[]>();
   for (const f of foundRows) foundBy.set(f.post_id, [...(foundBy.get(f.post_id) ?? []), { name: f.maker_name, url: f.url }]);
   const scored = scoreLaunches(ready.map((r) => ({
@@ -82,7 +84,7 @@ export async function getDashboard(): Promise<Dashboard> {
       rank: s.rank, tier: s.tier, finalScore: s.finalScore, upvoteScore: s.upvoteScore, makerScore: s.makerScore,
       upvotePoints: s.upvotePoints, makerPoints: s.makerPoints, daysSince: s.daysSince, daysLeft: s.daysLeft, closing: s.closing,
       rationale: rationale(s), firstSeenAt: new Date(r.first_seen_at).toISOString(),
-      links: buildLinks(r.url, r.website, makers),
+      links: buildLinks(r.website, makers, siteBy.get(s.postId) ?? null),
       suggestedPeople: (foundBy.get(s.postId) ?? []),
     };
   });
