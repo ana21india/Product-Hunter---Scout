@@ -117,7 +117,6 @@ export default function Page() {
           <h1>Partnership Scout</h1>
           <p className="sub">Product Hunt launches from the last 7 days, ranked for outreach. You decide whom to contact; nothing is ever sent.</p>
           <p className="sub">
-            <strong>Score = 60% upvotes + 40% maker comments</strong>, each measured against the highest in the current set.{" "}
             <button type="button" className="linkbtn" onClick={() => ruleRef.current?.showModal()}>How are scores calculated?</button>
           </p>
           <dialog ref={ruleRef} className="modal" aria-labelledby="rule-h" onClick={(e) => { if (e.target === ruleRef.current) ruleRef.current?.close(); }}>
