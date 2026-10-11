@@ -7,7 +7,8 @@ export const CATEGORIES = ["Project management", "HR tech", "Developer productiv
 export const KAVYA_PRODUCT = "A B2B SaaS product that helps remote teams run async standups.";
 
 // One Gemini Flash call that must return JSON matching `schema`. Low temperature, retries on rate limits.
-async function callJson(prompt: string, schema: unknown): Promise<any> {
+// `thinking` keeps Gemini's built-in reasoning short: these are simple tasks and the default made every call 2-3x slower.
+async function callJson(prompt: string, schema: unknown, thinking: unknown = { thinkingLevel: "low" }): Promise<any> {
   let lastErr = "";
   for (let attempt = 0; attempt < 5; attempt++) {
     const r = await fetch(GEMINI_URL, {
@@ -15,7 +16,7 @@ async function callJson(prompt: string, schema: unknown): Promise<any> {
       headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY as string },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: "application/json", responseSchema: schema },
+        generationConfig: { temperature: 0.1, responseMimeType: "application/json", responseSchema: schema, thinkingConfig: thinking },
       }),
     });
     if (r.status === 429 || r.status >= 500) {
@@ -62,7 +63,7 @@ ${list}`;
       required: ["id", "relevant", "category", "reason"],
     },
   };
-  return (await callJson(prompt, schema)) as { id: string; relevant: boolean; category: string; reason: string }[];
+  return (await callJson(prompt, schema, { thinkingBudget: 0 })) as { id: string; relevant: boolean; category: string; reason: string }[];
 }
 
 // One-line description and outreach angle, grounded only in the supplied facts.
@@ -119,7 +120,7 @@ If you found no such profile, reply with the single word NONE.`;
     const r = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY as string },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1 } }),
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1, thinkingConfig: { thinkingLevel: "low" } } }),
     });
     if (r.status === 429 || r.status >= 500) { await sleep(2000 * 2 ** attempt); continue; }
     if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
