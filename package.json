@@ -1,0 +1,24 @@
+{
+  "name": "producthunt-scout",
+  "version": "1.0.0",
+  "description": "(work in progress)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ana21india/Product-Hunter---Scout.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ana21india/Product-Hunter---Scout/issues"
+  },
+  "homepage": "https://github.com/ana21india/Product-Hunter---Scout#readme",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  }
+}
