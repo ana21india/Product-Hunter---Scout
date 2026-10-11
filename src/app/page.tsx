@@ -320,7 +320,13 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
       <p className="oneliner">{it.oneLiner ?? it.tagline ?? ""}</p>
       <dl className="meta">
         <div><dt>Category</dt><dd>{it.category}</dd></div>
-        <div><dt>Founder</dt><dd>{it.founders}</dd></div>
+        <div>
+          <dt>{it.founderNames.length > 1 ? "Founders" : "Founder"}</dt>
+          <dd title={it.founders}>
+            {it.founderNames.length === 0 ? "Not listed" : it.founderNames.slice(0, 3).join(", ")}
+            {it.founderNames.length > 3 && <span className="muted"> +{it.founderNames.length - 3} more</span>}
+          </dd>
+        </div>
         <div><dt>Upvotes</dt><dd>{it.votes}</dd></div>
         <div><dt>Maker comments</dt><dd>{it.makerComments}</dd></div>
         <div><dt>Days since launch</dt><dd>{it.daysSince}{it.closing ? " (day 6â€“7)" : ""}</dd></div>

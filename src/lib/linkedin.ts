@@ -1,6 +1,6 @@
 import { q } from "./db";
 import { findLinkedIn } from "./gemini";
-import { getDashboard } from "./data";
+import { getDashboard, cleanName } from "./data";
 
 // LinkedIn suggestions for the founders of the top 15 ranked launches. Gemini search plus strict checks; each founder is searched once.
 // Returns how many founders were skipped (out of time, or Gemini unavailable) so the next run can continue.
@@ -40,7 +40,7 @@ export async function suggestLinkedIn(opts: { deadline?: number; log?: (s: strin
   const jobs: { id: string; makerId: string; founder: string; product: string; tagline: string | null; website: string | null }[] = [];
   for (const l of ls) {
     const makers = (l.makers as any[]).filter((m) => m.id !== "0" && m.name && m.name !== "[REDACTED]" && !/linkedin\.com/i.test(m.websiteUrl ?? "")).slice(0, 3);
-    for (const m of makers) if (!done.has(`${l.id}:${m.id}`)) jobs.push({ id: l.id, makerId: m.id, founder: m.name, product: l.name, tagline: l.tagline, website: l.website });
+    for (const m of makers) if (!done.has(`${l.id}:${m.id}`)) jobs.push({ id: l.id, makerId: m.id, founder: cleanName(m.name), product: l.name, tagline: l.tagline, website: l.website });
   }
   log(`LinkedIn search: ${jobs.length} founders`);
   let skipped = 0, kept = 0, i = 0;

@@ -4,7 +4,7 @@ import { scoreLaunches, rationale, WINDOW_DAYS } from "./scoring";
 export type Item = {
   postId: string; slug: string; name: string; tagline: string | null; url: string | null;
   oneLiner: string | null; angle: string | null; angleState: "ok" | "thin" | "missing";
-  category: string; founders: string; votes: number; makerComments: number; createdAt: string;
+  category: string; founders: string; founderNames: string[]; votes: number; makerComments: number; createdAt: string;
   rank: number; tier: string; finalScore: number; upvoteScore: number; makerScore: number;
   upvotePoints: number; makerPoints: number; daysSince: number; daysLeft: number; closing: boolean;
   rationale: string; firstSeenAt: string; links: { label: string; url: string }[];
@@ -13,6 +13,15 @@ export type Item = {
 };
 
 type Maker = { id: string; name: string; websiteUrl?: string | null; twitterUsername?: string | null; url?: string | null };
+
+// Product Hunt display names are free text ("Krish | Chargebee", "Akash Sharma 💭"). For display and search we keep just the name.
+export function cleanName(raw: string): string {
+  return raw
+    .replace(/[\p{Extended_Pictographic}️‍]/gu, "")
+    .split("|")[0]
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const httpUrl = (u: string | null | undefined) => {
   if (!u) return null;
@@ -75,11 +84,12 @@ export async function getDashboard(): Promise<Dashboard> {
   const items: Item[] = scored.map((s) => {
     const r = byId.get(s.postId)!;
     const makers = (r.makers as Maker[]).filter((m) => m.id !== "0" && m.name && m.name !== "[REDACTED]");
+    const founderNames = [...new Set(makers.map((m) => cleanName(m.name)).filter(Boolean))];
     return {
       postId: s.postId, slug: r.slug, name: r.name, tagline: r.tagline, url: r.url,
       oneLiner: r.one_liner ?? null, angle: r.angle ?? null,
       angleState: r.angle_status === "ok" ? "ok" : r.angle_status === "thin" ? "thin" : "missing",
-      category: r.category, founders: makers.map((m) => m.name).join(", ") || "Not listed",
+      category: r.category, founders: founderNames.join(", ") || "Not listed", founderNames,
       votes: s.votes, makerComments: s.makerComments, createdAt: s.createdAt as string,
       rank: s.rank, tier: s.tier, finalScore: s.finalScore, upvoteScore: s.upvoteScore, makerScore: s.makerScore,
       upvotePoints: s.upvotePoints, makerPoints: s.makerPoints, daysSince: s.daysSince, daysLeft: s.daysLeft, closing: s.closing,
