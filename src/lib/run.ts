@@ -85,8 +85,10 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       await setSetting("scan_state", state);
       log(`  ${t}: ${n} launches`);
     }
-    await setSetting("fetch_watermark", state.started);
-    await q("DELETE FROM settings WHERE key='scan_state'");
+    if (!opts.topics) {
+      await setSetting("fetch_watermark", state.started);
+      await q("DELETE FROM settings WHERE key='scan_state'");
+    }
 
     // Phase B: Gemini relevance check on launches in the window that have no verdict yet.
     const unjudged = await q(
