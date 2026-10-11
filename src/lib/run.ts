@@ -77,15 +77,15 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       await setSetting("scan_state", state);
     }
     log(`Fetching launches posted since ${state.since}`);
-    for (const t of topics) {
-      if (state.done.includes(t)) continue;
-      const n = await PH.fetchTopicLaunches(t, state.since, async (rows) => {
+    const scan = state;
+    await pool(topics.filter((t) => !scan.done.includes(t)), 5, async (t) => {
+      const n = await PH.fetchTopicLaunches(t, scan.since, async (rows) => {
         newLaunches += await upsertLaunches(rows, topicCategory.get(t) ?? "Unclassified", !!opts.snapshot);
       });
-      state.done.push(t);
-      await setSetting("scan_state", state);
+      scan.done.push(t);
+      await setSetting("scan_state", scan);
       log(`  ${t}: ${n} launches`);
-    }
+    });
     if (!opts.topics) {
       await setSetting("fetch_watermark", state.started);
       await q("DELETE FROM settings WHERE key='scan_state'");
@@ -123,7 +123,7 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
        WHERE l.created_at > now() - ${WINDOW} AND l.last_refreshed < $1`, [runStart],
     );
     log(`Refreshing live numbers for ${stale.length} launches`);
-    await pool(chunks(stale.map((s: any) => s.id as string), 100), 2, async (ids) => {
+    await pool(chunks(stale.map((s: any) => s.id as string), 150), 4, async (ids) => {
       const cur = await PH.fetchCurrent(ids);
       if (!cur.length) return;
       await q(
@@ -144,18 +144,21 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
     log(`Maker comments: ${need.length} launches to (re)count`);
     await pool(chunks(need, 15), 3, async (batch: any[]) => {
       const res = await PH.fetchMakersAndCountsBatch(batch.map((l) => ({ id: l.id, slug: l.slug, cc: l.cc })));
-      for (const l of batch) {
+      const rows = batch.flatMap((l) => {
         const c = res.get(l.id);
-        if (!c) continue;
-        await q("UPDATE launches SET makers=$2::jsonb WHERE post_id=$1", [l.id, JSON.stringify(c.makers)]);
-        await q(
-          `INSERT INTO maker_comments (post_id, maker_comment_count, unattributed_count, comments_total_seen, fetched_at)
-           VALUES ($1,$2,$3,$4,now())
-           ON CONFLICT (post_id) DO UPDATE SET maker_comment_count=EXCLUDED.maker_comment_count, unattributed_count=EXCLUDED.unattributed_count,
-             comments_total_seen=EXCLUDED.comments_total_seen, fetched_at=now()`,
-          [l.id, c.maker, c.unattributed, l.cc],
-        );
-      }
+        return c ? [{ id: l.id, makers: c.makers, maker: c.maker, unattributed: c.unattributed, cc: l.cc }] : [];
+      });
+      if (!rows.length) return;
+      const json = JSON.stringify(rows);
+      await q(
+        `UPDATE launches l SET makers = x.makers FROM jsonb_to_recordset($1::jsonb) AS x(id text, makers jsonb) WHERE l.post_id = x.id`, [json],
+      );
+      await q(
+        `INSERT INTO maker_comments (post_id, maker_comment_count, unattributed_count, comments_total_seen, fetched_at)
+         SELECT x.id, x.maker, x.unattributed, x.cc, now() FROM jsonb_to_recordset($1::jsonb) AS x(id text, maker int, unattributed int, cc int)
+         ON CONFLICT (post_id) DO UPDATE SET maker_comment_count=EXCLUDED.maker_comment_count, unattributed_count=EXCLUDED.unattributed_count,
+           comments_total_seen=EXCLUDED.comments_total_seen, fetched_at=now()`, [json],
+      );
     });
     // Phase E: Gemini one-liner and angle for relevant launches without one.
     const angleFailed = await generateAngles({ log });
@@ -176,6 +179,7 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
     [runId, status, error ?? null, newLaunches, refreshed, note || null]);
   return { status, newLaunches, refreshed, note, error };
 }
+
 
 
 
