@@ -56,7 +56,7 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
   PH.budget.remaining = null;
 
   let newLaunches = 0, refreshed = 0;
-  const notes: string[] = [];
+  const notes: string[] = opts.snapshot ? ["Starting snapshot"] : [];
   let status: RunResult["status"] = "live";
   let error: string | undefined;
 
