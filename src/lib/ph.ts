@@ -9,6 +9,7 @@ export const budget = {
   resetSec: 900,
   mode: "wait" as "wait" | "stop",
   deadline: Infinity,
+  requests: 0, // Product Hunt requests sent during this process, for usage reporting
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -22,6 +23,7 @@ export async function ph<T = any>(query: string, variables: Record<string, unkno
       await sleep((budget.resetSec + 5) * 1000);
       budget.remaining = null;
     }
+    budget.requests++;
     const r = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.PH_TOKEN}` },
