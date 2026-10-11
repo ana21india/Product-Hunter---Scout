@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dashboard, Item } from "../lib/data";
 import { explainBelow, explainCompare } from "../lib/explain";
 
@@ -29,9 +29,8 @@ export default function Page() {
   const [picked, setPicked] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState("");
-  const [ruleOpen, setRuleOpen] = useState(true);
+  const ruleRef = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => { if (window.innerWidth < 860) setRuleOpen(false); }, []);
   useEffect(() => {
     try { const s = Number(localStorage.getItem("shortlistSize")); if (SIZES.includes(s)) setSize(s); } catch {}
   }, []);
@@ -117,7 +116,26 @@ export default function Page() {
         <div>
           <h1>Partnership Scout</h1>
           <p className="sub">Product Hunt launches from the last 7 days, ranked for outreach. You decide whom to contact; nothing is ever sent.</p>
-          <p className="sub"><strong>Score = 60% upvotes + 40% maker comments</strong>, each measured against the highest in the current set.</p>
+          <p className="sub">
+            <strong>Score = 60% upvotes + 40% maker comments</strong>, each measured against the highest in the current set.{" "}
+            <button type="button" className="linkbtn" onClick={() => ruleRef.current?.showModal()}>How are scores calculated?</button>
+          </p>
+          <dialog ref={ruleRef} className="modal" aria-labelledby="rule-h" onClick={(e) => { if (e.target === ruleRef.current) ruleRef.current?.close(); }}>
+            <div className="modalbody">
+              <h2 id="rule-h">How scores are calculated</h2>
+              <p><strong>Final score = 60% × Upvote score + 40% × Maker-comment score</strong>, from 0 to 100.</p>
+              <ul>
+                <li><strong>Upvote score</strong> = this product&apos;s upvotes ÷ the highest upvote count in the current 7-day set × 100.</li>
+                <li><strong>Maker-comment score</strong> = this product&apos;s maker comments ÷ the highest maker-comment count in the current set × 100. Maker comments are comments and replies written by the product&apos;s own makers on its launch page, never all community comments.</li>
+                <li>If nobody in the set has any maker comments, that part scores 0 for everyone.</li>
+                <li><strong>Ties:</strong> more maker comments first, then more upvotes.</li>
+                <li><strong>Tiers by rank:</strong> 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13 and below Lower priority.</li>
+                <li><strong>The set</strong> is every relevant launch from the last 7 days in your four categories, without duplicates. Category only decides which launches are fetched. It never changes the score.</li>
+                <li>Scores are recalculated from the latest numbers every time the page is shown. The &quot;Closing&quot; flag marks launches on day 6 to 7 of the window.</li>
+              </ul>
+              <button type="button" className="btn primary" onClick={() => ruleRef.current?.close()}>Close</button>
+            </div>
+          </dialog>
         </div>
         <div className="runbox">
           <button className="btn primary" onClick={runScout} disabled={running} aria-busy={running}>
@@ -166,13 +184,6 @@ export default function Page() {
           {data && !items.length && failed && !run?.lastGoodAt && (
             <div className="banner err" role="alert">Product Hunt could not be reached and there is no saved list yet. Please try again shortly.</div>
           )}
-
-          <details className="card rule" open={ruleOpen} onToggle={(e) => setRuleOpen((e.target as HTMLDetailsElement).open)}>
-            <summary>How scores are made</summary>
-            <p><strong>Final score = 60% upvotes + 40% maker comments.</strong></p>
-            <p>Each is measured against the highest in the current 7-day set (highest = 100). Maker comments are comments and replies written by the product&apos;s own makers, never all community comments.</p>
-            <p>Ties: more maker comments first, then more upvotes. Tiers by rank: 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13+ Lower priority.</p>
-          </details>
 
           <section className="card controls" aria-label="Search, filter and sort">
             <div className="field grow">
