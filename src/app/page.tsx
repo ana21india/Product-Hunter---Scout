@@ -30,6 +30,7 @@ export default function Page() {
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState("");
   const ruleRef = useRef<HTMLDialogElement>(null);
+  const cmpRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     try { const s = Number(localStorage.getItem("shortlistSize")); if (SIZES.includes(s)) setSize(s); } catch {}
@@ -55,8 +56,8 @@ export default function Page() {
         const r = await fetch("/api/run", { method: "POST" });
         res = await r.json();
         if (res.status === "busy") { setRunMsg("A run is already in progress. Please wait a moment and try again."); break; }
-        if (res.status !== "partial") break;
-        setRunMsg(`Still fetching (step ${step + 1})… this can take a few minutes the first time.`);
+        if (res.status !== "partial" || !/continue on the next click/.test(res.note ?? "")) break;
+        setRunMsg(`Still fetching (step ${step + 1})…`);
         await load();
       }
       await load();
@@ -102,6 +103,7 @@ export default function Page() {
   const togglePick = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 2 ? [p[1], id] : [...p, id]));
   const pickedItems = picked.map((id) => items.find((i) => i.postId === id)).filter(Boolean) as Item[];
+  useEffect(() => { if (pickedItems.length === 2) cmpRef.current?.showModal(); }, [pickedItems.length]);
 
   const run = data?.run;
   const failed = run?.latestStatus === "failed";
@@ -172,7 +174,7 @@ export default function Page() {
         <main className="main">
           {loadError && <div className="banner err" role="alert">{loadError}</div>}
           {failed && <div className="banner warn" role="status">Could not fetch new launches; showing last run ({fmtTime(run?.lastGoodAt ?? null)}).{run?.latestError ? "" : ""}</div>}
-          {partial && <div className="banner warn" role="status">Partly refreshed. {run?.latestNote} Press Run scout again to continue.</div>}
+          {partial && <div className="banner warn" role="status">Partly refreshed. {run?.latestNote}</div>}
           {showSnapshot && <div className="banner info" role="status">Showing the starting snapshot taken from Product Hunt at {fmtTime(run?.lastGoodAt ?? null)}. Press Run scout for fresh data.</div>}
           {!!data?.pending && <div className="banner info" role="status">{data.pending} launches are still being processed and will appear after the next run.</div>}
           {runMsg && <div className="banner ok" role="status">{runMsg}</div>}
@@ -271,21 +273,31 @@ export default function Page() {
             </>
           )}
 
-          {picked.length > 0 && (
-            <section className="compare card" aria-labelledby="cmp-h">
-              <div className="cmphead">
-                <h2 id="cmp-h">Compare</h2>
-                <button className="btn" onClick={() => setPicked([])}>Clear comparison</button>
-              </div>
-              {pickedItems.length < 2 ? (
-                <p className="muted">Select one more product to compare side by side.</p>
-              ) : (
-                <CompareTable a={pickedItems[0]} b={pickedItems[1]} />
-              )}
-            </section>
-          )}
         </main>
       </div>
+
+      {picked.length > 0 && (
+        <div className="cmpbar" role="region" aria-label="Compare selection">
+          <span>
+            {pickedItems.length < 2
+              ? `Compare: ${pickedItems[0]?.name ?? "1 selected"}. Select one more product.`
+              : `Compare: ${pickedItems[0].name} and ${pickedItems[1].name}`}
+          </span>
+          <span className="cmpactions">
+            {pickedItems.length === 2 && <button className="btn primary" onClick={() => cmpRef.current?.showModal()}>View comparison</button>}
+            <button className="btn" onClick={() => setPicked([])}>Clear</button>
+          </span>
+        </div>
+      )}
+      <dialog ref={cmpRef} className="modal wide" aria-labelledby="cmp-h" onClick={(e) => { if (e.target === cmpRef.current) cmpRef.current?.close(); }}>
+        <div className="modalbody">
+          <div className="cmphead">
+            <h2 id="cmp-h">Compare</h2>
+            <button className="btn" onClick={() => cmpRef.current?.close()}>Close</button>
+          </div>
+          {pickedItems.length === 2 && <CompareTable a={pickedItems[0]} b={pickedItems[1]} />}
+        </div>
+      </dialog>
     </div>
   );
 }
@@ -326,7 +338,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
       <p className="angle"><strong>Suggested angle:</strong>{" "}
         {it.angleState === "ok" && it.angle}
         {it.angleState === "thin" && "Angle unavailable"}
-        {it.angleState === "missing" && "Unavailable, retry (press Run scout)"}
+        {it.angleState === "missing" && "Not ready yet. It is written during Run scout; press Run scout again if it stays empty."}
       </p>
       {it.suggestedPeople.length > 0 && (
         <div className="suggest">
