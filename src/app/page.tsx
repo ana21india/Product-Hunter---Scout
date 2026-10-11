@@ -61,7 +61,7 @@ export default function Page() {
       }
       await load();
       if (res?.status === "live") setRunMsg(`Fetched from Product Hunt at ${fmtShort(new Date().toISOString())}: ${res.newLaunches} new launches found, upvotes and comments refreshed for ${res.refreshed} launches. ${res.note ?? ""}`);
-      else if (res?.status === "partial") setRunMsg(`Partly refreshed: ${res.note} Press Run scout again to continue.`);
+      else if (res?.status === "partial") setRunMsg("");
       else if (res?.status === "failed") setRunMsg("");
     } catch {
       setRunMsg("");
