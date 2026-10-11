@@ -8,6 +8,8 @@ export type Item = {
   rank: number; tier: string; finalScore: number; upvoteScore: number; makerScore: number;
   upvotePoints: number; makerPoints: number; daysSince: number; daysLeft: number; closing: boolean;
   rationale: string; firstSeenAt: string; links: { label: string; url: string }[];
+  // From a web search, not from Product Hunt. Only present when exactly one matching profile was found.
+  suggestedPeople: { name: string; url: string }[];
 };
 
 type Maker = { id: string; name: string; websiteUrl?: string | null; twitterUsername?: string | null; url?: string | null };
@@ -18,7 +20,7 @@ const httpUrl = (u: string | null | undefined) => {
 };
 
 // Suggested links come only from real Product Hunt data. Anything missing is simply left out. Nothing is guessed or searched for.
-export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[], found: { name: string; url: string }[] = []) {
+export function buildLinks(launchUrl: string | null, website: string | null, makers: Maker[]) {
   const links: { label: string; url: string }[] = [];
   const launch = httpUrl(launchUrl);
   if (launch) links.push({ label: "Product Hunt launch", url: launch.split("?")[0] });
@@ -32,10 +34,6 @@ export function buildLinks(launchUrl: string | null, website: string | null, mak
     if (m.twitterUsername && /^[A-Za-z0-9_]{1,15}$/.test(m.twitterUsername)) links.push({ label: `${who} on X`, url: `https://x.com/${m.twitterUsername}` });
     const p = httpUrl(m.url);
     if (p && /(^|\.)producthunt\.com$/i.test(new URL(p).hostname)) links.push({ label: `${who} on Product Hunt`, url: p.split("?")[0] });
-  }
-  for (const f of found) {
-    if (links.some((l) => l.url === f.url)) continue;
-    links.push({ label: `${solo ? "Founder" : f.name} on LinkedIn (found by search, please confirm)`, url: f.url });
   }
   return links;
 }
@@ -84,7 +82,8 @@ export async function getDashboard(): Promise<Dashboard> {
       rank: s.rank, tier: s.tier, finalScore: s.finalScore, upvoteScore: s.upvoteScore, makerScore: s.makerScore,
       upvotePoints: s.upvotePoints, makerPoints: s.makerPoints, daysSince: s.daysSince, daysLeft: s.daysLeft, closing: s.closing,
       rationale: rationale(s), firstSeenAt: new Date(r.first_seen_at).toISOString(),
-      links: buildLinks(r.url, r.website, makers, foundBy.get(s.postId) ?? []),
+      links: buildLinks(r.url, r.website, makers),
+      suggestedPeople: (foundBy.get(s.postId) ?? []),
     };
   });
 

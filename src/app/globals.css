@@ -91,6 +91,9 @@ input[type="search"], select { min-height: 44px; padding: 8px 10px; border-radiu
 .bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .why { margin: 6px 0 0; font-size: 0.9rem; }
 .angle { margin: 8px 0 0; }
+.suggest { margin: 10px 0 0; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; }
+.suggest p { margin: 0; }
+.suggest a { display: inline-block; padding: 8px 2px; }
 .links { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 0 4px; }
 .links a { display: inline-block; padding: 10px 2px; }
 .band { margin: 8px 0; padding: 10px 14px; border-radius: 10px; border: 1.5px dashed var(--muted); color: var(--muted); text-align: center; }

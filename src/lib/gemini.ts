@@ -111,10 +111,10 @@ export function verifyLinkedIn(url: string, evidence: string, founder: string, p
 // Ask Gemini (with Google Search) for a founder's LinkedIn profile. Returns a verified URL or null.
 export async function findLinkedIn(p: { founder: string; product: string; tagline: string | null; website: string | null }) {
   const prompt = `Use Google Search to find the LinkedIn profile of ${p.founder}, a founder or maker of the product "${p.product}"${p.tagline ? ` (${p.tagline})` : ""}${p.website ? `, website ${p.website}` : ""}.
-Only answer if you found a linkedin.com/in/ profile for this exact person, linked to this product or company. Do not guess.
-Reply in exactly two lines:
-URL: <the linkedin.com/in/ address, or NONE>
-EVIDENCE: <the profile headline or company you saw, quoted from the result, or NONE>`;
+List every linkedin.com/in/ profile you find that could belong to a person with this name, even if you are not sure it is the right one. Do not guess or invent addresses.
+Reply with one line per profile, in exactly this form:
+PROFILE: <the linkedin.com/in/ address> | <the headline or company shown in the result, quoted>
+If you found no such profile, reply with the single word NONE.`;
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await fetch(GEMINI_URL, {
       method: "POST",
@@ -125,11 +125,20 @@ EVIDENCE: <the profile headline or company you saw, quoted from the result, or N
     if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
     const j: any = await r.json();
     const text: string = j.candidates?.[0]?.content?.parts?.map((x: any) => x.text ?? "").join("") ?? "";
-    const url = text.match(/URL:\s*(\S+)/i)?.[1] ?? "";
-    const evidence = text.match(/EVIDENCE:\s*([\s\S]*)/i)?.[1]?.trim() ?? "";
-    if (!url || /^none$/i.test(url)) return { url: null, evidence: evidence.slice(0, 300) };
-    const ok = verifyLinkedIn(url.replace(/[)>.,;]+$/, ""), evidence, p.founder, p.product, p.website);
-    return { url: ok, evidence: evidence.slice(0, 300) };
+    const cands = [...text.matchAll(/PROFILE:\s*(\S+)\s*\|\s*(.*)/gi)].map((m) => ({ url: m[1].replace(/[)>.,;*]+$/, ""), evidence: m[2].trim() }));
+    // Several profiles with this person's name: we cannot tell which is right, so we keep none.
+    const sameName = new Map<string, { url: string; evidence: string }>();
+    for (const c of cands) {
+      const h = c.url.match(/linkedin\.com\/in\/([A-Za-z0-9%_-]+)/i)?.[1]?.toLowerCase();
+      if (!h) continue;
+      const flat = norm(decodeURIComponent(h).replace(/-/g, " ")).replace(/ /g, "");
+      const parts = norm(p.founder).split(" ").filter((t) => t.length >= 2);
+      if (parts.length >= 2 && flat.includes(parts[0]) && flat.includes(parts[parts.length - 1])) sameName.set(flat, c);
+    }
+    if (sameName.size > 1) return { url: null, evidence: "ambiguous: more than one profile with this name" };
+    const only = [...sameName.values()][0];
+    if (!only) return { url: null, evidence: cands[0]?.evidence.slice(0, 300) ?? "" };
+    return { url: verifyLinkedIn(only.url, only.evidence, p.founder, p.product, p.website), evidence: only.evidence.slice(0, 300) };
   }
   throw new Error("Gemini search failed");
 }

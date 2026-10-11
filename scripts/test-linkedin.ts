@@ -1,8 +1,9 @@
-import { findLinkedIn } from "../src/lib/gemini";
+﻿import { findLinkedIn } from "../src/lib/gemini";
 
 const cases = [
   { founder: "Dylan Field", product: "Figma Agent", tagline: "Prompt, edit and prototype without leaving the canvas", website: "https://www.figma.com" },
   { founder: "Brendan O'Driscoll", product: "Figma Agent", tagline: "Prompt, edit and prototype without leaving the canvas", website: "https://www.figma.com" },
+  { founder: "Michael Chen", product: "Acme Analytics", tagline: "Analytics for teams", website: null },
   { founder: "Yaniv Hayun", product: "Leanback", tagline: "AI assistant for engineering managers", website: null },
   { founder: "Fer Flores", product: "Cairo AI", tagline: "Workforce analytics and skills intelligence", website: null },
   { founder: "lmanchu", product: "IrisGo", tagline: "", website: null },
@@ -15,3 +16,4 @@ for (const c of cases) {
     console.log(`${c.founder}: error ${e.message}`);
   }
 }
+

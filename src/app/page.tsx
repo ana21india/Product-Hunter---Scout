@@ -328,8 +328,18 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
         {it.angleState === "thin" && "Angle unavailable"}
         {it.angleState === "missing" && "Unavailable, retry (press Run scout)"}
       </p>
+      {it.suggestedPeople.length > 0 && (
+        <div className="suggest">
+          <p><strong>Suggested person to speak to:</strong>{" "}
+            {it.suggestedPeople.map((p, i) => (
+              <span key={p.url}>{i > 0 && " · "}{p.name} (<a href={p.url} target="_blank" rel="noreferrer">LinkedIn profile</a>)</span>
+            ))}
+          </p>
+          <p className="muted small">A suggestion from a web search, not part of the Product Hunt data or the ranking. Look at it or skip it, and please confirm it is the right person.</p>
+        </div>
+      )}
       {it.links.length > 0 && (
-        <p className="links"><strong>Suggested links:</strong>{" "}
+        <p className="links"><strong>Links:</strong>{" "}
           {it.links.map((l, i) => (
             <span key={l.url + l.label}>{i > 0 && " · "}<a href={l.url} target="_blank" rel="noreferrer">{l.label}</a></span>
           ))}
