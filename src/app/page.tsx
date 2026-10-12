@@ -142,7 +142,7 @@ export default function Page() {
   const items = data?.items ?? [];
   const watchlist = data?.watchlist ?? [];
   const tracked = data?.tracked ?? [];
-  const th = data?.thresholds ?? { minMaker: 2, minVotes: 10 };
+  const th = data?.thresholds ?? { minMaker: 1, freshHours: 24 };
   const shortlist = useMemo(() => items.slice(0, size), [items, size]);
   const categories = useMemo(() => [...new Set(items.map((i) => i.category))].sort(), [items]);
   const controlsActive = !!(search || category || tier || days || sort !== "score");
@@ -292,7 +292,7 @@ export default function Page() {
             <p className="sub">{subs[view]}</p>
           </div>
           <div className="runbox">
-            <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}</div>
+            <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}<span> · updates automatically every 6 hours</span></div>
             <button className="btn primary" onClick={runScout} disabled={running} aria-busy={running}>{running ? "Running…" : "Run scout"}</button>
           </div>
         </header>
@@ -313,7 +313,7 @@ export default function Page() {
               <button type="button" className={`tile ${closingCount > 0 ? "hot" : ""}`} onClick={() => openList("closing")} aria-label={`Close today: ${closingCount}. Show these launches`}><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></button>
               <button type="button" className="tile" onClick={() => openList("trending")} aria-label={`Trending on Product Hunt: ${trendingCount}. Show these launches`}><span className="ticon"><Icon name="trend" /></span><div><div className="tlabel">Trending on Product Hunt</div><div className="tnum">{trendingCount}</div><div className="tsub">top of the leaderboard</div></div></button>
               <button type="button" className="tile" onClick={() => openOutreach("contacted")} aria-label={`Contacted: ${contactedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="send" /></span><div><div className="tlabel">Contacted</div><div className="tnum">{contactedAll.length}</div><div className="tsub">{shortlistDone} of {shortlist.length} shortlisted done</div></div></button>
-              <button type="button" className="tile" onClick={() => openOutreach("replied")} aria-label={`Replies: ${repliedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="reply" /></span><div><div className="tlabel">Replies</div><div className="tnum">{repliedAll.length}</div><div className="tsub">{replyRate === null ? "no outreach yet" : `${replyRate}% reply rate`}</div></div></button>
+              <button type="button" className="tile" onClick={() => openOutreach("replied")} aria-label={`Founders replied: ${repliedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="reply" /></span><div><div className="tlabel">Founders replied</div><div className="tnum">{repliedAll.length}</div><div className="tsub">{contactedAll.length === 0 ? "no outreach yet" : `${replyRate}% of the ${contactedAll.length} you contacted`}</div></div></button>
             </section>
 
             <section className="card todo" aria-labelledby="todo-h">
@@ -358,7 +358,7 @@ export default function Page() {
                 </select>
               </div>
               <p className="muted small grow">
-                A launch qualifies when its makers have written at least {th.minMaker} comments and it has at least {th.minVotes} upvotes.
+                Launches under {th.freshHours} hours old are always ranked. Older launches are ranked once their makers have commented on their launch.
                 {items.length < size ? ` Only ${items.length} qualify right now, so the shortlist is shorter than ${size}. The rest are on the Watchlist.` : ""}
               </p>
             </section>
@@ -441,7 +441,7 @@ export default function Page() {
         {view === "watch" && (
           <>
             <section className="card note">
-              <p>These launches fit your four areas, but they do not qualify for the ranking yet: makers need at least {th.minMaker} comments and the launch needs at least {th.minVotes} upvotes. Each run checks them again, and a launch moves up as soon as it qualifies. Nothing here is hidden from you.</p>
+              <p>These launches fit your four areas, but they are not ranked: their makers have not commented on the launch, and it is more than {th.freshHours} hours old. Each run checks them again, and a launch moves up as soon as its makers comment. Nothing here is hidden from you.</p>
             </section>
             <div className="table" role="list">
               {watchlist.length === 0 && <p className="muted">Nothing waiting. Every relevant launch this week already qualifies.</p>}
@@ -499,7 +499,7 @@ export default function Page() {
           <h2 id="rule-h">How launches are ranked</h2>
           <ul>
             <li><strong>Relevant:</strong> the product&apos;s customers are the kind of people who run team standups, in project management, HR tech, developer productivity or team communication.</li>
-            <li><strong>Qualifies:</strong> the makers have written at least {th.minMaker} comments or replies (more than the usual intro post) and the launch has at least {th.minVotes} upvotes. Others wait on the Watchlist and are re-checked on every run.</li>
+            <li><strong>Ranked:</strong> every launch under {th.freshHours} hours old, since it has had no time to build traction. Older launches are ranked once their makers have commented on their launch, and the usual intro post counts. Launches whose makers never commented wait on the Watchlist and are re-checked on every run. There is no minimum number of upvotes.</li>
             <li><strong>Ranking score</strong> = 60% × Upvote score + 40% × Maker-comment score, from 0 to 100.</li>
             <li><strong>Upvote score</strong> = the launch&apos;s upvotes ÷ the highest upvote count among qualifying launches × 100.</li>
             <li><strong>Maker-comment score</strong> = its maker comments ÷ the highest maker-comment count among qualifying launches × 100. Maker comments are comments and replies written by the product&apos;s own makers, never all community comments.</li>

@@ -34,7 +34,7 @@ Maker-comment score  = product's maker comments / highest maker comments in the 
 ```
 
 - **Maker comments** are comments and replies written by the product's own makers on its launch page. They are never all community comments. A comment is attributed to a maker by matching the comment's user id with the launch's maker ids (never by display name).
-- **The set** is every relevant launch posted in the last 7 days, without duplicates, **that qualifies**. A launch qualifies when its makers have written at least 2 comments or replies (more than the usual single intro post) and it has at least 10 upvotes (roughly the top 10% of launches in a typical week). This is an addition to the written rubric: in testing, 41 of 310 relevant launches had no maker comments at all (mostly large companies whose makers do not reply), 248 had only the intro comment, and the median launch had 1 upvote. Launches that do not qualify yet stay on the Watchlist and are re-checked every run. The two thresholds are constants in `src/lib/scoring.ts`.
+- **The set** is every relevant launch posted in the last 7 days, without duplicates, **that is ranked**. Every launch under 24 hours old is ranked, because it has had no time to build traction. An older launch is ranked once its makers have commented on their launch (the usual intro post counts). There is no minimum number of upvotes. This is an addition to the written rubric: in testing, 41 of 310 relevant launches had no maker comments at all (mostly large companies whose makers never reply to anyone). Those wait on the Watchlist and are re-checked on every run. The thresholds are constants in `src/lib/scoring.ts`.
 - If the highest value of a metric is 0, that metric scores 0 for everyone (no division by zero).
 - **Ties:** more maker comments first, then more upvotes, then the older post.
 - **Tiers by rank:** 1 to 4 Priority, 5 to 8 Strong fit, 9 to 12 Consider, 13 and below Lower priority.
@@ -129,3 +129,8 @@ This project was built as coursework. Product Hunt's API terms say the API must 
 ## Nothing is ever sent
 
 The app only reads and ranks. It does not send, schedule or draft messages to founders. Kavya alone decides whom to contact and how.
+
+## Automatic sync
+
+A GitHub Actions workflow (.github/workflows/sync.yml) calls the same run endpoint every 6 hours, so the list is never more than 6 hours old. Run scout still fetches live data on demand. This is an addition to the brief, which asked for on-demand runs only.
+

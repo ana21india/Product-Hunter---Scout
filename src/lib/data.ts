@@ -1,5 +1,5 @@
 import { q } from "./db";
-import { scoreLaunches, rationale, WINDOW_DAYS, qualifies, MIN_MAKER_COMMENTS, MIN_UPVOTES } from "./scoring";
+import { scoreLaunches, rationale, WINDOW_DAYS, qualifies, MIN_MAKER_COMMENTS, FRESH_HOURS } from "./scoring";
 
 export type Item = {
   postId: string; slug: string; name: string; tagline: string | null; url: string | null;
@@ -63,7 +63,7 @@ export type TrackedItem = {
   postId: string; name: string; url: string | null; status: "contacted" | "replied" | "skipped"; statusAt: string;
   votes: number; inWindow: boolean; daysLeft: number; rank: number | null; tier: string | null;
 };
-export type Dashboard = { items: Item[]; watchlist: WatchItem[]; tracked: TrackedItem[]; thresholds: { minMaker: number; minVotes: number }; filteredOut: FilteredOut[]; filteredCount: number; pending: number; run: RunInfo; windowDays: number; serverTime: string };
+export type Dashboard = { items: Item[]; watchlist: WatchItem[]; tracked: TrackedItem[]; thresholds: { minMaker: number; freshHours: number }; filteredOut: FilteredOut[]; filteredCount: number; pending: number; run: RunInfo; windowDays: number; serverTime: string };
 
 // Reads only from the database. Scores and ranks are computed here, from the current eligible set, on every read.
 export async function getDashboard(includeFiltered = false): Promise<Dashboard> {
@@ -77,8 +77,8 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
      WHERE l.created_at > now() - interval '${WINDOW_DAYS} days'`,
   );
   const readyAll = rows.filter((r) => r.relevant && r.maker_comment_count !== null);
-  const ready = readyAll.filter((r) => qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count }));
-  const waiting = readyAll.filter((r) => !qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count }));
+  const ready = readyAll.filter((r) => qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count, createdAt: r.created_at }));
+  const waiting = readyAll.filter((r) => !qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count, createdAt: r.created_at }));
   const pending = rows.filter((r) => r.relevant && r.maker_comment_count === null).length;
   const filteredOut: FilteredOut[] = rows.filter((r) => !r.relevant).map((r) => ({
     postId: r.post_id, name: r.name, tagline: r.tagline, url: r.url, reason: r.reason, serves: r.serves ?? null, votes: r.votes_count,
@@ -123,9 +123,7 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
   const watchlist: WatchItem[] = waiting.map((r) => {
     const daysSince = Math.floor((Date.now() - new Date(r.created_at).getTime()) / dayMs);
     const reasons: string[] = [];
-    if (r.maker_comment_count === 0) reasons.push("Makers have not commented yet");
-    else if (r.maker_comment_count < MIN_MAKER_COMMENTS) reasons.push("Only an intro comment from the makers so far");
-    if (r.votes_count < MIN_UPVOTES) reasons.push(`Under ${MIN_UPVOTES} upvotes so far`);
+    if (r.maker_comment_count < MIN_MAKER_COMMENTS) reasons.push("The makers have not commented on their launch");
     return {
       postId: r.post_id, name: r.name, url: r.url, oneLiner: r.one_liner ?? null, serves: r.serves ?? null, category: r.category,
       votes: r.votes_count, makerComments: r.maker_comment_count, daysSince, daysLeft: WINDOW_DAYS - daysSince, reasons,
@@ -161,5 +159,5 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
     refreshed: latest?.refreshed ?? null,
     running: latest?.status === "running" && Date.now() - new Date(latest.started_at).getTime() < 10 * 60e3,
   };
-  return { items, watchlist, tracked, thresholds: { minMaker: MIN_MAKER_COMMENTS, minVotes: MIN_UPVOTES }, filteredOut: includeFiltered ? filteredOut : [], filteredCount: filteredOut.length, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
+  return { items, watchlist, tracked, thresholds: { minMaker: MIN_MAKER_COMMENTS, freshHours: FRESH_HOURS }, filteredOut: includeFiltered ? filteredOut : [], filteredCount: filteredOut.length, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
 }

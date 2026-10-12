@@ -7,13 +7,15 @@ export const W_MAKER = 0.4;
 const DAY_MS = 864e5;
 const TIE_EPS = 1e-9;
 
-// Qualification: a launch is ranked only when its makers are visibly active and it has some traction.
-// Makers must have written at least MIN_MAKER_COMMENTS comments or replies (more than the usual single intro post),
-// and the launch needs at least MIN_UPVOTES upvotes (roughly the top 10% of launches in a typical week).
-// Launches that do not qualify yet stay visible on the Watchlist and are re-checked on every run.
-export const MIN_MAKER_COMMENTS = 2;
-export const MIN_UPVOTES = 10;
-export const qualifies = (r: { votes: number; makerComments: number }) => r.makerComments >= MIN_MAKER_COMMENTS && r.votes >= MIN_UPVOTES;
+// Qualification: a launch is ranked unless it is clearly inactive.
+// A launch under FRESH_HOURS old is always ranked: it has had no time to build traction, and its makers may not have posted yet.
+// An older launch is ranked once its makers have written at least MIN_MAKER_COMMENTS comment (the usual intro post counts),
+// which leaves out launches whose makers never showed up (for example large companies that do not reply).
+// Launches that are not ranked stay visible on the Watchlist and are re-checked on every run. There is no upvote floor.
+export const MIN_MAKER_COMMENTS = 1;
+export const FRESH_HOURS = 24;
+export const qualifies = (r: { votes: number; makerComments: number; createdAt: string | Date }, now: Date = new Date()) =>
+  (now.getTime() - new Date(r.createdAt).getTime()) / 36e5 < FRESH_HOURS || r.makerComments >= MIN_MAKER_COMMENTS;
 
 export type Tier = "Priority" | "Strong fit" | "Consider" | "Lower priority";
 

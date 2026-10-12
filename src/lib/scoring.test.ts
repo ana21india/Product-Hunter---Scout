@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreLaunches, eligibleSet, tierForRank, qualifies, MIN_MAKER_COMMENTS, MIN_UPVOTES } from "./scoring";
+import { scoreLaunches, eligibleSet, tierForRank, qualifies, MIN_MAKER_COMMENTS, FRESH_HOURS } from "./scoring";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
 const ago = (days: number) => new Date(NOW.getTime() - days * 864e5).toISOString();
@@ -117,12 +117,14 @@ test("empty set returns an empty list", () => {
   assert.deepEqual(scoreLaunches([], NOW), []);
 });
 
-test("qualification: makers must be active and the launch needs some traction", () => {
-  assert.equal(MIN_MAKER_COMMENTS, 2);
-  assert.equal(MIN_UPVOTES, 10);
-  assert.equal(qualifies({ votes: 478, makerComments: 68 }), true);
-  assert.equal(qualifies({ votes: 186, makerComments: 0 }), false); // big launch, makers silent
-  assert.equal(qualifies({ votes: 150, makerComments: 1 }), false); // only the intro comment
-  assert.equal(qualifies({ votes: 3, makerComments: 5 }), false); // active makers but no traction yet
-  assert.equal(qualifies({ votes: 10, makerComments: 2 }), true); // exactly at both thresholds
+test("qualification: fresh launches are always ranked, older ones need their makers to have commented", () => {
+  const now = new Date("2026-10-12T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 36e5).toISOString();
+  assert.equal(MIN_MAKER_COMMENTS, 1);
+  assert.equal(FRESH_HOURS, 24);
+  assert.equal(qualifies({ votes: 0, makerComments: 0, createdAt: hoursAgo(4) }, now), true); // launched 4 hours ago, no traction yet
+  assert.equal(qualifies({ votes: 2, makerComments: 1, createdAt: hoursAgo(10) }, now), true); // intro comment only, still fresh
+  assert.equal(qualifies({ votes: 83, makerComments: 1, createdAt: hoursAgo(40) }, now), true); // older, but the makers commented
+  assert.equal(qualifies({ votes: 186, makerComments: 0, createdAt: hoursAgo(70) }, now), false); // older, makers never commented
+  assert.equal(qualifies({ votes: 1, makerComments: 1, createdAt: hoursAgo(100) }, now), true); // no upvote floor
 });

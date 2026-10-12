@@ -1,0 +1,19 @@
+name: Sync launches every 6 hours
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Run the scout (same as clicking Run scout)
+        run: |
+          for i in 1 2 3 4; do
+            out=$(curl -sS -m 320 -X POST https://wingmate-scout.vercel.app/api/run || true)
+            echo "$out" | head -c 400; echo
+            echo "$out" | grep -q '"status":"partial"' || break
+          done
