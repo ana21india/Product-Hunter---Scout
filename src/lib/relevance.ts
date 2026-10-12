@@ -26,49 +26,58 @@ async function save(verdicts: Verdict[]) {
     await q(`UPDATE launches l SET category=x.category FROM jsonb_to_recordset($1::jsonb) AS x(id text, category text) WHERE l.post_id=x.id`, [JSON.stringify(cats)]);
 }
 
+// Stage 2: read the product's own website and judge again, because the website says who the product is for.
+async function judgeWithWebsites(ids: string[], opts: { deadline?: number; log: (s: string) => void }) {
+  if (!ids.length) return;
+  await readSitesFor(ids, { deadline: opts.deadline });
+  const withSite: any[] = await q(
+    `SELECT post_id AS id, name, tagline, description, site_text AS "siteText" FROM launches WHERE post_id = ANY($1::text[]) AND length(coalesce(site_text,'')) >= 300`,
+    [ids],
+  );
+  opts.log(`  websites read: ${withSite.length} of ${ids.length} usable`);
+  await pool(chunks(withSite as LaunchIn[], 10), 4, async (batch) => {
+    try {
+      const out = await judgeRelevance(batch);
+      const known = new Set(batch.map((b) => b.id));
+      await save(out.filter((o) => known.has(o.id)));
+    } catch { /* keeps its earlier verdict */ }
+  });
+}
+
 // The two-step relevance check. Stage 1 judges from the Product Hunt text and removes the clear misses. Stage 2 reads the product's own
-// website for the rest and judges again, because the website says who the product is for. Launches whose website cannot be read keep
-// their stage 1 verdict.
+// website for the rest and judges again. Launches whose website cannot be read keep their stage 1 verdict.
 export async function judgeLaunches(opts: { all?: boolean; deadline?: number; log?: (s: string) => void } = {}) {
   const log = opts.log ?? (() => {});
   const todo: any[] = await q(
     `SELECT l.post_id AS id, l.name, l.tagline, l.description FROM launches l LEFT JOIN relevance r ON r.post_id = l.post_id
-     WHERE l.created_at > now() - interval '7 days' ${opts.all ? "" : "AND r.post_id IS NULL"}`,
+     WHERE l.created_at > now() - interval '7 days' ${opts.all ? "" : "AND (r.post_id IS NULL OR r.audience IS NULL)"}`,
   );
   log(`Relevance check: ${todo.length} launches`);
   let failed = 0;
-  const survivors: LaunchIn[] = [];
-
+  const survivors: string[] = [];
   await pool(chunks(todo as LaunchIn[], 15), 4, async (batch) => {
     try {
       const out = await judgeRelevance(batch);
-      const ids = new Set(batch.map((b) => b.id));
-      const ok = out.filter((o) => ids.has(o.id));
-      const drop = ok.filter((o) => !o.relevant);
-      await save(drop);
-      const keep = new Set(ok.filter((o) => o.relevant).map((o) => o.id));
-      const kept = ok.filter((o) => o.relevant);
-      await save(kept);
-      for (const b of batch) if (keep.has(b.id)) survivors.push(b);
+      const known = new Set(batch.map((b) => b.id));
+      const ok = out.filter((o) => known.has(o.id));
+      await save(ok);
+      for (const o of ok) if (o.relevant) survivors.push(o.id);
       failed += batch.length - ok.length;
     } catch { failed += batch.length; }
   });
-
   log(`  stage 1 done: ${survivors.length} to check against their own websites`);
-  if (survivors.length && !(opts.deadline && Date.now() > opts.deadline)) {
-    await readSitesFor(survivors.map((s) => s.id), { deadline: opts.deadline });
-    const withSite: any[] = await q(
-      `SELECT post_id AS id, name, tagline, description, site_text AS "siteText" FROM launches WHERE post_id = ANY($1::text[]) AND length(coalesce(site_text,'')) >= 300`,
-      [survivors.map((s) => s.id)],
-    );
-    log(`  websites read: ${withSite.length} usable`);
-    await pool(chunks(withSite as LaunchIn[], 10), 4, async (batch) => {
-      try {
-        const out = await judgeRelevance(batch);
-        const ids = new Set(batch.map((b) => b.id));
-        await save(out.filter((o) => ids.has(o.id)));
-      } catch { /* keeps its stage 1 verdict */ }
-    });
-  }
+  if (survivors.length && !(opts.deadline && Date.now() > opts.deadline)) await judgeWithWebsites(survivors, { deadline: opts.deadline, log });
   return { judged: todo.length, failed };
+}
+
+// Repair pass: relevant launches whose website text is missing (for example it was throttled) are read again and judged against it.
+export async function judgeUnreadSites(opts: { deadline?: number; log?: (s: string) => void } = {}) {
+  const log = opts.log ?? (() => {});
+  const ids: string[] = (await q(
+    `SELECT l.post_id AS id FROM launches l JOIN relevance r ON r.post_id = l.post_id
+     WHERE r.relevant AND l.created_at > now() - interval '7 days' AND length(coalesce(l.site_text,'')) < 300 AND coalesce(l.site_status,'') <> 'no website'`,
+  )).map((r: any) => r.id);
+  log(`Repair: ${ids.length} relevant launches without usable website text`);
+  await judgeWithWebsites(ids, { deadline: opts.deadline, log });
+  return ids.length;
 }
