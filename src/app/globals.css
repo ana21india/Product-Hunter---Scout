@@ -247,3 +247,10 @@ tbody th { font-weight: 500; color: var(--muted); width: 32%; }
   .row.watch .outreach { grid-column: auto; }
   .trackactions { justify-content: flex-start; }
 }
+
+/* Summary tiles are buttons */
+button.tile { text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; transition: transform 0.12s, border-color 0.12s; }
+button.tile::after { content: "→"; margin-left: auto; color: var(--muted); font-size: 1.1rem; align-self: center; }
+button.tile:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+button.tile:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.filterbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 12px 14px; background: var(--soft-2); border: 1px solid var(--line); border-radius: 12px; }

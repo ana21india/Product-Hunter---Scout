@@ -65,6 +65,7 @@ export default function Page() {
   const [filteredList, setFilteredList] = useState<FilteredOut[] | null>(null);
   const [flash, setFlash] = useState<string[]>([]);
   const [trackTab, setTrackTab] = useState<Status>("contacted");
+  const [listFilter, setListFilter] = useState<"closing" | "trending" | null>(null);
   const ruleRef = useRef<HTMLDialogElement>(null);
   const cmpRef = useRef<HTMLDialogElement>(null);
 
@@ -184,6 +185,11 @@ export default function Page() {
     return list.slice(0, 6);
   }, [shortlist, flash]);
 
+  const shortlistShown = listFilter === "closing"
+    ? shortlist.filter((i) => !i.status && i.daysLeft <= 2)
+    : listFilter === "trending"
+      ? shortlist.filter((i) => !i.status && trendLabel(i))
+      : shortlist;
   const closingCount = shortlist.filter((i) => !i.status && i.daysLeft <= 2).length;
   const trendingCount = shortlist.filter((i) => !i.status && trendLabel(i)).length;
   const contactedAll = tracked.filter((t) => t.status === "contacted" || t.status === "replied");
@@ -206,7 +212,10 @@ export default function Page() {
   const partial = run?.latestStatus === "partial";
   const showSnapshot = run?.lastGoodWasSnapshot && !failed;
   function clearControls() { setSearch(""); setCategory(""); setTier(""); setDays(""); setSort("score"); }
-  const go = (v: View) => { if (v !== "all") clearControls(); setView(v); };
+  const go = (v: View) => { if (v !== "all") clearControls(); setListFilter(null); setView(v); };
+  // The summary tiles are shortcuts: they open the matching list or the matching outreach tab.
+  const openList = (f: "closing" | "trending") => { clearControls(); setListFilter(f); setView("shortlist"); };
+  const openOutreach = (t: Status) => { clearControls(); setListFilter(null); setTrackTab(t); setView("outreach"); };
 
   useEffect(() => {
     if (view !== "filtered" || filteredList) return;
@@ -293,10 +302,10 @@ export default function Page() {
         {view === "today" && (
           <>
             <section className="tiles" aria-label="Summary">
-              <div className="tile"><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></div>
-              <div className="tile"><span className="ticon"><Icon name="trend" /></span><div><div className="tlabel">Trending on Product Hunt</div><div className="tnum">{trendingCount}</div><div className="tsub">top of the leaderboard</div></div></div>
-              <div className="tile"><span className="ticon"><Icon name="send" /></span><div><div className="tlabel">Contacted</div><div className="tnum">{contactedAll.length}</div><div className="tsub">{shortlistDone} of {shortlist.length} shortlisted done</div></div></div>
-              <div className="tile"><span className="ticon"><Icon name="reply" /></span><div><div className="tlabel">Replies</div><div className="tnum">{repliedAll.length}</div><div className="tsub">{replyRate === null ? "no outreach yet" : `${replyRate}% reply rate`}</div></div></div>
+              <button type="button" className="tile" onClick={() => openList("closing")} aria-label={`Close today: ${closingCount}. Show these launches`}><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></button>
+              <button type="button" className="tile" onClick={() => openList("trending")} aria-label={`Trending on Product Hunt: ${trendingCount}. Show these launches`}><span className="ticon"><Icon name="trend" /></span><div><div className="tlabel">Trending on Product Hunt</div><div className="tnum">{trendingCount}</div><div className="tsub">top of the leaderboard</div></div></button>
+              <button type="button" className="tile" onClick={() => openOutreach("contacted")} aria-label={`Contacted: ${contactedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="send" /></span><div><div className="tlabel">Contacted</div><div className="tnum">{contactedAll.length}</div><div className="tsub">{shortlistDone} of {shortlist.length} shortlisted done</div></div></button>
+              <button type="button" className="tile" onClick={() => openOutreach("replied")} aria-label={`Replies: ${repliedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="reply" /></span><div><div className="tlabel">Replies</div><div className="tnum">{repliedAll.length}</div><div className="tsub">{replyRate === null ? "no outreach yet" : `${replyRate}% reply rate`}</div></div></button>
             </section>
 
             <section className="card todo" aria-labelledby="todo-h">
@@ -345,8 +354,16 @@ export default function Page() {
                 {items.length < size ? ` Only ${items.length} qualify right now, so the shortlist is shorter than ${size}. The rest are on the Watchlist.` : ""}
               </p>
             </section>
-            {table(shortlist, false)}
-            {items.length > size && (
+            {listFilter && (
+              <div className="filterbar" role="status">
+                <span>
+                  Showing {shortlistShown.length} {listFilter === "closing" ? "launches whose window ends in 2 days or less" : "launches trending on Product Hunt"}, not yet contacted.
+                </span>
+                <button type="button" className="btn" onClick={() => setListFilter(null)}>Show the full shortlist</button>
+              </div>
+            )}
+            {table(shortlistShown, false)}
+            {!listFilter && items.length > size && (
               <>
                 <div className="band strong" role="separator">The shortlist ends here. {items.length - size} more launches are ranked below.</div>
                 <button className="btn primary wide" onClick={() => go("all")}>See all launches ({items.length})</button>
