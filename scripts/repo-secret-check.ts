@@ -4,6 +4,7 @@ const secrets: [string, string | undefined][] = [
   ["PH_TOKEN", process.env.PH_TOKEN],
   ["GEMINI_API_KEY", process.env.GEMINI_API_KEY],
   ["DATABASE_URL", process.env.DATABASE_URL],
+  ["SERPAPI_KEY", process.env.SERPAPI_KEY],
 ];
 const revs = spawnSync("git", ["rev-list", "--all"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
 console.log(`commits checked: ${revs.length}`);

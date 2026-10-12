@@ -18,7 +18,7 @@ export async function searchLinkedInResults(founder: string, product: string): P
     num: "10",
     api_key: process.env.SERPAPI_KEY as string,
   });
-  const r = await fetch(`https://serpapi.com/search.json?${params}`, { signal: AbortSignal.timeout(20000) });
+  const r = await fetch(`https://serpapi.com/search.json?${params}`, { signal: AbortSignal.timeout(45000) });
   if (!r.ok) throw new Error(`Search service HTTP ${r.status}`);
   const j: any = await r.json();
   if (j.error && !/hasn't returned any results/i.test(String(j.error))) throw new Error("Search service: " + String(j.error).slice(0, 80));
