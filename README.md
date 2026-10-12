@@ -132,5 +132,5 @@ The app only reads and ranks. It does not send, schedule or draft messages to fo
 
 ## Automatic sync
 
-A GitHub Actions workflow (.github/workflows/sync.yml) calls the same run endpoint every 6 hours, so the list is never more than 6 hours old. Run scout still fetches live data on demand. This is an addition to the brief, which asked for on-demand runs only.
+A GitHub Actions workflow (.github/workflows/sync.yml) checks every 10 minutes and calls the run endpoint with `?auto=1`. The endpoint only runs when the latest run is at least 6 hours old, so the automatic run always happens 6 hours after the latest run, whether that was a click on Run scout or an automatic run. A failed run is retried after 30 minutes. Run scout still fetches live data on demand. This is an addition to the brief, which asked for on-demand runs only.
 
