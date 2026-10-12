@@ -89,3 +89,14 @@ ALTER TABLE relevance ADD COLUMN IF NOT EXISTS audience text;
 ALTER TABLE relevance ADD COLUMN IF NOT EXISTS serves text;
 ALTER TABLE launches ADD COLUMN IF NOT EXISTS site_text text;
 ALTER TABLE launches ADD COLUMN IF NOT EXISTS site_status text;
+
+-- 10. Product Hunt ranks, recent upvote change, and Kavya's own outreach tracking (she records what she did, nothing is sent)
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS daily_rank integer;
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS weekly_rank integer;
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS votes_prev integer;
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS votes_prev_at timestamptz;
+CREATE TABLE IF NOT EXISTS actions (
+  post_id    text PRIMARY KEY REFERENCES launches(post_id) ON DELETE CASCADE,
+  status     text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);

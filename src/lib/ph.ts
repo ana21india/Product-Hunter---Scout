@@ -122,9 +122,9 @@ export async function fetchMakersAndCounts(slug: string, commentsCount: number) 
 
 // Current upvotes and total comment count for up to ~20 posts in one request.
 export async function fetchCurrent(ids: string[]) {
-  const body = ids.map((id, i) => `p${i}: post(id:"${id}"){ id votesCount commentsCount }`).join(" ");
+  const body = ids.map((id, i) => `p${i}: post(id:"${id}"){ id votesCount commentsCount dailyRank weeklyRank }`).join(" ");
   const d: any = await ph(`{ ${body} }`);
-  return Object.values(d).filter(Boolean) as { id: string; votesCount: number; commentsCount: number }[];
+  return Object.values(d).filter(Boolean) as { id: string; votesCount: number; commentsCount: number; dailyRank: number | null; weeklyRank: number | null }[];
 }
 
 export type MakerCounts = { makers: { id: string; name: string; username: string }[]; total: number; maker: number; unattributed: number };

@@ -12,11 +12,13 @@ Partnership Scout replaces that scan. When she clicks **Run scout**, the app pul
 
 ## What she sees
 
+- **A 10-second "Today" view.** Four summary tiles (launches to close today, trending on Product Hunt, contacted, replies) and a "Do this today" list of the shortlisted launches that need action first: windows ending in 2 days or less, launches ranked high on Product Hunt's own leaderboard, and fresh launches near the top. Each has a "Mark contacted" button.
 - **Shortlist** of the top 10 to 15 launches (she picks the size, default 15), with a clear "shortlist ends here" band and a button to see all launches.
-- **All apps** view with every ranked launch, plus search (name, founder, one-liner), filters (category, tier, days since launch) and sorting (score, upvotes, maker comments, days since launch).
-- **Per launch:** rank, name and one-liner, category, founder, upvotes, maker comments, days since launch (flagged "Closing" on day 6 to 7), final score with a bar, tier, the reason behind the score, a short suggested angle, and the product website. A company LinkedIn page is shown when the product's own website links one.
+- **All launches** view with every ranked launch, plus search (name, founder, one-liner), filters (category, tier, days since launch) and sorting (score, upvotes, maker comments, days since launch).
+- **Compact rows.** Each launch is one row: rank, name and one-line description, who it serves, upvotes and maker comments, days left in the 7-day window, score bar and tier. The longer details (the suggested angle, why it scored this way, founders, links) open with "View angle".
+- **Outreach tracking.** Each row has Contacted, Replied and Skip buttons. They save Kavya's own notes only; the app never sends anything. A **Results** view then shows contacted, replied and reply rate by tier and by category, so she can see what is working.
 - **Compare** up to four launches side by side, with a plain explanation of why one is ranked above the others.
-- **Filtered out** list in the left pane: launches judged not relevant for B2B teams, with the reason. They are never ranked.
+- **Filtered out** view: launches judged not relevant for B2B teams, with the reason. They are never ranked.
 - The time of the last run, and a notice banner whenever the data is not fully fresh.
 
 ## How scores are made
@@ -112,7 +114,8 @@ All keys live in `.env`, which is git-ignored, and in Vercel's environment setti
 - **Maker comments** can only be attributed when Product Hunt returns the commenter's user id and the maker's id. In testing both were available. Product Hunt sometimes redacts a maker's id inside very large requests, so such launches are re-read on their own.
 - **Upvotes and comments change only when someone clicks Run scout.** The page shows the time of the last run. There is no scheduler.
 - **Founder LinkedIn suggestions** use Gemini's built-in search with strict checks (the profile address must contain the founder's name, the quoted text must mention the product, and two profiles with the same name mean nothing is shown). They appear rarely, are labelled as a suggestion to confirm, and are not part of the ranking. A "Company on LinkedIn" link appears when the product's own website links its LinkedIn page.
-- **Relevance filtering** is done by Gemini from the tagline and description, and it leans towards keeping a borderline launch. Filtered launches stay visible in the left pane.
+- **Relevance filtering** is a two-step Gemini check. It first asks which of the four areas a launch fits, then who uses it day to day (one person, individual professionals inside a team workflow, or teams and managers directly), using the Product Hunt text and the product's own website. It keeps a launch unless it is clearly personal or clearly outside the four areas. Filtered launches stay visible in the Filtered out view.
+- **No login.** Anyone with the link can press the Contacted, Replied and Skip buttons, and they share one set of notes. This was a deliberate choice for a single-user coursework tool.
 
 ## Product Hunt API terms
 

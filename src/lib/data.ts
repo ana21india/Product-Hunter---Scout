@@ -10,6 +10,9 @@ export type Item = {
   rationale: string; firstSeenAt: string; links: { label: string; url: string }[];
   // From a web search, not from Product Hunt. Only present when exactly one matching profile was found.
   suggestedPeople: { name: string; url: string }[];
+  // Kavya's own tracking (she records what she did; the app never sends anything) and Product Hunt trending signals.
+  status: "contacted" | "replied" | "skipped" | null; statusAt: string | null;
+  dailyRank: number | null; weeklyRank: number | null; votesGain: number;
 };
 
 type Maker = { id: string; name: string; websiteUrl?: string | null; twitterUsername?: string | null; url?: string | null };
@@ -49,16 +52,17 @@ export type RunInfo = {
   lastGoodAt: string | null; lastGoodWasSnapshot: boolean; latestStatus: string | null; latestAt: string | null;
   latestStartedAt: string | null; latestNote: string | null; latestError: string | null; newLaunches: number | null; refreshed: number | null; running: boolean;
 };
-export type Dashboard = { items: Item[]; filteredOut: FilteredOut[]; pending: number; run: RunInfo; windowDays: number; serverTime: string };
+export type Dashboard = { items: Item[]; filteredOut: FilteredOut[]; filteredCount: number; pending: number; run: RunInfo; windowDays: number; serverTime: string };
 
 // Reads only from the database. Scores and ranks are computed here, from the current eligible set, on every read.
-export async function getDashboard(): Promise<Dashboard> {
+export async function getDashboard(includeFiltered = false): Promise<Dashboard> {
   const rows = await q(
     `SELECT l.post_id, l.slug, l.name, l.tagline, l.url, l.website, l.votes_count, l.created_at, l.first_seen_at, l.makers, l.category,
-            r.relevant, r.reason, r.serves, m.maker_comment_count, a.one_liner, a.angle, a.status AS angle_status
+            r.relevant, r.reason, r.serves, m.maker_comment_count, a.one_liner, a.angle, a.status AS angle_status, l.daily_rank, l.weekly_rank, l.votes_prev, l.votes_prev_at, act.status AS action_status, act.updated_at AS action_at
      FROM launches l JOIN relevance r ON r.post_id = l.post_id
      LEFT JOIN maker_comments m ON m.post_id = l.post_id
      LEFT JOIN angles a ON a.post_id = l.post_id
+     LEFT JOIN actions act ON act.post_id = l.post_id
      WHERE l.created_at > now() - interval '${WINDOW_DAYS} days'`,
   );
   const ready = rows.filter((r) => r.relevant && r.maker_comment_count !== null);
@@ -96,6 +100,9 @@ export async function getDashboard(): Promise<Dashboard> {
       rationale: rationale(s), firstSeenAt: new Date(r.first_seen_at).toISOString(),
       links: buildLinks(r.website, makers, siteBy.get(s.postId) ?? null),
       suggestedPeople: (foundBy.get(s.postId) ?? []),
+      status: (r.action_status ?? null) as Item["status"], statusAt: r.action_at ? new Date(r.action_at).toISOString() : null,
+      dailyRank: r.daily_rank ?? null, weeklyRank: r.weekly_rank ?? null,
+      votesGain: r.votes_prev_at && Date.now() - new Date(r.votes_prev_at).getTime() < 24 * 3600e3 && r.votes_prev != null ? Math.max(0, s.votes - r.votes_prev) : 0,
     };
   });
 
@@ -114,5 +121,5 @@ export async function getDashboard(): Promise<Dashboard> {
     refreshed: latest?.refreshed ?? null,
     running: latest?.status === "running" && Date.now() - new Date(latest.started_at).getTime() < 10 * 60e3,
   };
-  return { items, filteredOut, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
+  return { items, filteredOut: includeFiltered ? filteredOut : [], filteredCount: filteredOut.length, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
 }

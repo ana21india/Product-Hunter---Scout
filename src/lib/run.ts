@@ -106,9 +106,12 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       const cur = await PH.fetchCurrent(ids);
       if (!cur.length) return;
       await q(
-        `UPDATE launches l SET votes_count=x.votes, comments_count=x.comments, last_refreshed=now()
-         FROM jsonb_to_recordset($1::jsonb) AS x(id text, votes int, comments int) WHERE l.post_id=x.id`,
-        [JSON.stringify(cur.map((c) => ({ id: c.id, votes: c.votesCount, comments: c.commentsCount })))],
+        `UPDATE launches l SET
+           votes_prev = CASE WHEN l.votes_count <> x.votes THEN l.votes_count ELSE l.votes_prev END,
+           votes_prev_at = CASE WHEN l.votes_count <> x.votes THEN now() ELSE l.votes_prev_at END,
+           votes_count=x.votes, comments_count=x.comments, daily_rank=x.daily, weekly_rank=x.weekly, last_refreshed=now()
+         FROM jsonb_to_recordset($1::jsonb) AS x(id text, votes int, comments int, daily int, weekly int) WHERE l.post_id=x.id`,
+        [JSON.stringify(cur.map((c) => ({ id: c.id, votes: c.votesCount, comments: c.commentsCount, daily: c.dailyRank, weekly: c.weeklyRank })))],
       );
       refreshed += cur.length;
     });
