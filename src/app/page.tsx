@@ -49,7 +49,7 @@ export default function Page() {
 
   async function runScout() {
     setRunning(true);
-    setRunMsg("Asking Product Hunt for the latest launchesâ€¦");
+    setRunMsg("Asking Product Hunt for the latest launches…");
     try {
       let res: any = null;
       for (let step = 1; step <= 8; step++) {
@@ -57,7 +57,7 @@ export default function Page() {
         res = await r.json();
         if (res.status === "busy") { setRunMsg("A run is already in progress. Please wait a moment and try again."); break; }
         if (res.status !== "partial" || !/continue on the next click/.test(res.note ?? "")) break;
-        setRunMsg(`Still fetching (step ${step + 1})â€¦`);
+        setRunMsg(`Still fetching (step ${step + 1})…`);
         await load();
       }
       await load();
@@ -123,13 +123,13 @@ export default function Page() {
           <dialog ref={ruleRef} className="modal" aria-labelledby="rule-h" onClick={(e) => { if (e.target === ruleRef.current) ruleRef.current?.close(); }}>
             <div className="modalbody">
               <h2 id="rule-h">How scores are calculated</h2>
-              <p><strong>Final score = 60% Ã— Upvote score + 40% Ã— Maker-comment score</strong>, from 0 to 100.</p>
+              <p><strong>Final score = 60% × Upvote score + 40% × Maker-comment score</strong>, from 0 to 100.</p>
               <ul>
-                <li><strong>Upvote score</strong> = this product&apos;s upvotes Ã· the highest upvote count in the current 7-day set Ã— 100.</li>
-                <li><strong>Maker-comment score</strong> = this product&apos;s maker comments Ã· the highest maker-comment count in the current set Ã— 100. Maker comments are comments and replies written by the product&apos;s own makers on its launch page, never all community comments.</li>
+                <li><strong>Upvote score</strong> = this product&apos;s upvotes ÷ the highest upvote count in the current 7-day set × 100.</li>
+                <li><strong>Maker-comment score</strong> = this product&apos;s maker comments ÷ the highest maker-comment count in the current set × 100. Maker comments are comments and replies written by the product&apos;s own makers on its launch page, never all community comments.</li>
                 <li>If nobody in the set has any maker comments, that part scores 0 for everyone.</li>
                 <li><strong>Ties:</strong> more maker comments first, then more upvotes.</li>
-                <li><strong>Tiers by rank:</strong> 1â€“4 Priority, 5â€“8 Strong fit, 9â€“12 Consider, 13 and below Lower priority.</li>
+                <li><strong>Tiers by rank:</strong> 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13 and below Lower priority.</li>
                 <li><strong>The set</strong> is every relevant launch from the last 7 days in your four categories, without duplicates. Category only decides which launches are fetched. It never changes the score.</li>
                 <li>Scores are recalculated from the latest numbers every time the page is shown. The &quot;Closing&quot; flag marks launches on day 6 to 7 of the window.</li>
               </ul>
@@ -139,7 +139,7 @@ export default function Page() {
         </div>
         <div className="runbox">
           <button className="btn primary" onClick={runScout} disabled={running} aria-busy={running}>
-            {running ? "Runningâ€¦" : "Run scout"}
+            {running ? "Running…" : "Run scout"}
           </button>
           <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}</div>
         </div>
@@ -162,7 +162,7 @@ export default function Page() {
               {(data?.filteredOut ?? []).slice(0, 200).map((f) => (
                 <li key={f.postId}>
                   <a href={f.url ?? "#"} target="_blank" rel="noreferrer">{f.name}</a>
-                  <span className="muted"> Â· {f.votes} upvotes</span>
+                  <span className="muted"> · {f.votes} upvotes</span>
                   <div className="muted small">{f.reason}</div>
                 </li>
               ))}
@@ -208,9 +208,9 @@ export default function Page() {
               <label htmlFor="days">Days since launch</label>
               <select id="days" value={days} onChange={(e) => setDays(e.target.value as DaysFilter)}>
                 <option value="">Any</option>
-                <option value="0-2">0â€“2 days</option>
-                <option value="3-5">3â€“5 days</option>
-                <option value="6-7">6â€“7 days (closing)</option>
+                <option value="0-2">0–2 days</option>
+                <option value="3-5">3–5 days</option>
+                <option value="6-7">6–7 days (closing)</option>
               </select>
             </div>
             <div className="field">
@@ -262,7 +262,7 @@ export default function Page() {
                   <ul>
                     {below.map((b) => (
                       <li key={b.postId}>
-                        <strong>#{b.rank} {b.name}</strong> Â· score {score(b.finalScore)}
+                        <strong>#{b.rank} {b.name}</strong> · score {score(b.finalScore)}
                         <div className="muted small">{explainBelow(b as any, cutoffItem as any)}</div>
                       </li>
                     ))}
@@ -329,7 +329,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
         </div>
         <div><dt>Upvotes</dt><dd>{it.votes}</dd></div>
         <div><dt>Maker comments</dt><dd>{it.makerComments}</dd></div>
-        <div><dt>Days since launch</dt><dd>{it.daysSince}{it.closing ? " (day 6â€“7)" : ""}</dd></div>
+        <div><dt>Days since launch</dt><dd>{it.daysSince}{it.closing ? " (day 6–7)" : ""}</dd></div>
       </dl>
       <div className="scorewrap">
         <div className="scoretxt"><strong>{score(it.finalScore)}</strong> / 100</div>
@@ -347,7 +347,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
         <div className="suggest">
           <p><strong>Suggested person to speak to:</strong>{" "}
             {it.suggestedPeople.map((p, i) => (
-              <span key={p.url}>{i > 0 && " Â· "}{p.name} (<a href={p.url} target="_blank" rel="noreferrer">LinkedIn profile</a>)</span>
+              <span key={p.url}>{i > 0 && " · "}{p.name} (<a href={p.url} target="_blank" rel="noreferrer">LinkedIn profile</a>)</span>
             ))}
           </p>
           <p className="muted small">A suggestion from a web search, not part of the Product Hunt data or the ranking. Look at it or skip it, and please confirm it is the right person.</p>
@@ -356,7 +356,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
       {it.links.length > 0 && (
         <p className="links"><strong>Links:</strong>{" "}
           {it.links.map((l, i) => (
-            <span key={l.url + l.label}>{i > 0 && " Â· "}<a href={l.url} target="_blank" rel="noreferrer">{l.label}</a></span>
+            <span key={l.url + l.label}>{i > 0 && " · "}<a href={l.url} target="_blank" rel="noreferrer">{l.label}</a></span>
           ))}
         </p>
       )}
