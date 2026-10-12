@@ -53,6 +53,7 @@ export default function Page() {
   const [runMsg, setRunMsg] = useState("");
   const [saveError, setSaveError] = useState("");
   const [filteredList, setFilteredList] = useState<FilteredOut[] | null>(null);
+  const [flash, setFlash] = useState<string[]>([]);
   const ruleRef = useRef<HTMLDialogElement>(null);
   const cmpRef = useRef<HTMLDialogElement>(null);
 
@@ -106,6 +107,13 @@ export default function Page() {
     }
   }
 
+  // From the "Do this today" list: show the item ticked off for a moment, then it leaves the list.
+  function markFromTodo(it: Item) {
+    setFlash((f) => [...f, it.postId]);
+    setStatus(it, "contacted");
+    setTimeout(() => setFlash((f) => f.filter((x) => x !== it.postId)), 1100);
+  }
+
   const items = data?.items ?? [];
   const shortlist = useMemo(() => items.slice(0, size), [items, size]);
   const categories = useMemo(() => [...new Set(items.map((i) => i.category))].sort(), [items]);
@@ -135,7 +143,7 @@ export default function Page() {
   // The 10-second view: what to act on today, from the shortlist, for launches not yet contacted.
   const todo = useMemo(() => {
     const list = shortlist
-      .filter((i) => !i.status)
+      .filter((i) => !i.status || flash.includes(i.postId))
       .map((i) => {
         const reasons: { text: string; kind: "urgent" | "trend" | "fresh" }[] = [];
         let urgency = 0;
@@ -149,7 +157,7 @@ export default function Page() {
       .filter((x) => x.reasons.length > 0)
       .sort((a, b) => b.urgency - a.urgency);
     return list.slice(0, 6);
-  }, [shortlist]);
+  }, [shortlist, flash]);
 
   const closingCount = shortlist.filter((i) => !i.status && i.daysLeft <= 2).length;
   const trendingCount = shortlist.filter((i) => !i.status && trendLabel(i)).length;
@@ -239,8 +247,8 @@ export default function Page() {
               ) : (
                 <ol className="todolist">
                   {todo.map(({ it, reasons }) => (
-                    <li key={it.postId} className="todoitem">
-                      <span className="step" aria-hidden="true">{it.rank}</span>
+                    <li key={it.postId} className={`todoitem ${flash.includes(it.postId) ? "flashed" : ""}`}>
+                      <span className={`step ${flash.includes(it.postId) ? "done" : ""}`} aria-hidden="true">{flash.includes(it.postId) ? <Icon name="check" /> : it.rank}</span>
                       <div className="todomain">
                         <a href={it.url ?? "#"} target="_blank" rel="noreferrer" className="todoname">{it.name}</a>
                         <div className="chips">
@@ -250,7 +258,7 @@ export default function Page() {
                       </div>
                       <div className="todoactions">
                         <button className="btn" onClick={() => openAndScroll(it.postId)}>View angle</button>
-                        <button className="btn primary" onClick={() => setStatus(it, "contacted")}>Mark contacted</button>
+                        <button className="btn primary" onClick={() => markFromTodo(it)}>Mark contacted</button>
                       </div>
                     </li>
                   ))}
