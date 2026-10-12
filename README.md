@@ -2,7 +2,7 @@
 
 A small web app that gives a partnerships lead a **ranked outreach list of Product Hunt launches from the last 7 days**, on demand.
 
-**Live app:** https://product-hunter-scout-8pnx.vercel.app/
+**Live app:** https://wingmate-scout.vercel.app/
 
 ## The problem it solves
 
