@@ -35,6 +35,8 @@ function trendLabel(it: Item): string | null {
   if (it.votesGain >= 5) return `+${it.votesGain} upvotes today`;
   return null;
 }
+// Opens a Google search in Kavya's own browser, which finds the profile where an automated search cannot. It claims nothing.
+const linkedinSearch = (name: string, product: string) => `https://www.google.com/search?q=${encodeURIComponent(`${name} ${product} LinkedIn`)}`;
 const daysLeftText = (n: number) => (n <= 1 ? "Last day" : `${n} days left`);
 
 function Icon({ name }: { name: "clock" | "trend" | "send" | "reply" | "check" | "chevron" }) {
@@ -573,7 +575,26 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
           </div>
           <div className="dcol">
             <h4>{it.founderNames.length > 1 ? "Founders" : "Founder"} <span className="muted small" title="Makers listed on this launch on Product Hunt">(as listed on Product Hunt)</span></h4>
-            <p>{it.founderNames.length === 0 ? "Not listed" : it.founderNames.slice(0, 4).join(", ")}{it.founderNames.length > 4 && <span className="muted"> +{it.founderNames.length - 4} more</span>}</p>
+            <ul className="founders">
+              {it.founderNames.length === 0 && <li>Not listed</li>}
+              {it.founderNames.slice(0, 4).map((n) => {
+                const direct = it.suggestedPeople.find((p) => p.name === n);
+                return (
+                  <li key={n}>
+                    <span className="fname">{n}</span>
+                    {direct ? (
+                      <>
+                        <a href={direct.url} target="_blank" rel="noreferrer">LinkedIn profile</a>
+                        <span className="muted small">(found by search, please confirm)</span>
+                      </>
+                    ) : (
+                      <a href={linkedinSearch(n, it.name)} target="_blank" rel="noreferrer">Find on LinkedIn</a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {it.founderNames.length > 4 && <p className="muted small">+{it.founderNames.length - 4} more makers listed on Product Hunt</p>}
             <h4>Category</h4>
             <p>{it.category}</p>
             {it.links.length > 0 && (
@@ -582,14 +603,7 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
                 <p className="links">{it.links.map((l, i) => <span key={l.url + l.label}>{i > 0 && " · "}<a href={l.url} target="_blank" rel="noreferrer">{l.label}</a></span>)}</p>
               </>
             )}
-            {it.suggestedPeople.length > 0 && (
-              <div className="suggest">
-                <p><strong>Suggested person to speak to:</strong>{" "}
-                  {it.suggestedPeople.map((p, i) => <span key={p.url}>{i > 0 && " · "}{p.name} (<a href={p.url} target="_blank" rel="noreferrer">LinkedIn profile</a>)</span>)}
-                </p>
-                <p className="muted small">A suggestion from a web search, not part of the Product Hunt data or the ranking. Please confirm it is the right person.</p>
-              </div>
-            )}
+            
           </div>
         </div>
       )}

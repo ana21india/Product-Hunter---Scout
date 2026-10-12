@@ -1,20 +1,21 @@
 const key = process.env.SERPAPI_KEY as string;
-async function run(label: string, q: string, extra: Record<string, string> = {}) {
-  const params = new URLSearchParams({ engine: "google", q, num: "20", api_key: key, ...extra });
-  try {
-    const r = await fetch(`https://serpapi.com/search.json?${params}`, { signal: AbortSignal.timeout(90000) });
-    const j: any = await r.json();
-    const all = (j.organic_results ?? []) as any[];
-    const profiles = all.filter((o) => /linkedin\.com\/in\//i.test(String(o.link)));
-    console.log(`${label.padEnd(34)} ${String(all.length).padStart(2)} results, ${profiles.length} profile pages${j.error ? " ERROR " + j.error : ""}`);
-    for (const o of profiles.slice(0, 3)) console.log(`      ${String(o.title).slice(0, 60)} | ${o.link}`);
-  } catch (e: any) { console.log(`${label}: ${e.message}`); }
+async function get(params: Record<string, string>) {
+  const r = await fetch(`https://serpapi.com/search.json?${new URLSearchParams({ api_key: key, ...params })}`, { signal: AbortSignal.timeout(90000) });
+  return { status: r.status, j: (await r.json()) as any };
 }
-for (const [name, product] of [["Ishu Darshan", "Velozity"], ["Dylan Field", "Figma"]]) {
-  console.log(`\n=== ${name} (${product})`);
-  await run("A  site:linkedin.com/in", `site:linkedin.com/in "${name}"`);
-  await run("B  name + product + linkedin", `"${name}" ${product} linkedin`);
-  await run("C  name linkedin profile", `${name} LinkedIn profile ${product} founder`);
-  await run("D  site:linkedin.com", `site:linkedin.com "${name}" ${product}`);
-  await run("E  Google, India", `site:linkedin.com/in "${name}"`, { gl: "in", google_domain: "google.co.in" });
+for (const q of ["ishu darshan velozity", "dylan field figma"]) {
+  const first = await get({ engine: "google", q, gl: "in", hl: "en", google_domain: "google.co.in" });
+  const token = first.j.ai_overview?.page_token;
+  console.log(`\n"${q}": first search HTTP ${first.status}, AI Overview token present: ${!!token}`);
+  if (!token) continue;
+  const ov = await get({ engine: "google_ai_overview", page_token: token });
+  console.log(`  AI Overview fetch HTTP ${ov.status}${ov.j.error ? " ERROR " + ov.j.error : ""}`);
+  const text = JSON.stringify(ov.j);
+  const hits = [...new Set([...text.matchAll(/https?:\/\/[a-z.]*linkedin\.com\/in\/[A-Za-z0-9%_\-]+/gi)].map((m) => m[0]))];
+  console.log(`  LinkedIn profile addresses in the AI Overview: ${hits.length}`);
+  hits.slice(0, 5).forEach((h) => console.log("     " + h));
+  const refs = (ov.j.ai_overview?.references ?? ov.j.references ?? []) as any[];
+  console.log(`  references: ${refs.length}`, refs.slice(0, 4).map((r) => `${String(r.title).slice(0, 40)} | ${String(r.link).slice(0, 60)}`));
+  const firstText = (ov.j.ai_overview?.text_blocks ?? ov.j.text_blocks ?? [])[0];
+  if (firstText) console.log("  overview text:", String(firstText.snippet ?? JSON.stringify(firstText)).slice(0, 200));
 }

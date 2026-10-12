@@ -274,3 +274,9 @@ button.tile:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; 
 .brand { background: none; border: 0; color: inherit; cursor: pointer; text-align: left; font-family: var(--font-head); }
 .brand:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 10px; }
 @media (max-width: 860px) { .homebar { margin: -18px -14px 14px; padding: 8px 14px; } }
+
+/* Founders list with LinkedIn links */
+.founders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.founders li { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; }
+.founders .fname { font-weight: 600; }
+.founders a { display: inline-block; padding: 10px 2px; }
