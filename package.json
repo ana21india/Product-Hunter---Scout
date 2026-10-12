@@ -4,7 +4,7 @@
   "description": "(work in progress)",
   "main": "index.js",
   "scripts": {
-    "test": "tsx --test src/lib/scoring.test.ts",
+    "test": "tsx --test src/lib/scoring.test.ts src/lib/serp.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

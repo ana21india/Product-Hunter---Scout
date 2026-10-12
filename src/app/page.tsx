@@ -171,9 +171,9 @@ export default function Page() {
     const list = shortlist
       .filter((i) => !i.status || flash.includes(i.postId))
       .map((i) => {
-        const reasons: { text: string; kind: "urgent" | "trend" | "fresh" }[] = [];
+        const reasons: { text: string; kind: string }[] = [];
         let urgency = 0;
-        if (i.daysLeft <= 2) { reasons.push({ text: i.daysLeft <= 1 ? "Last day to reach out" : `${i.daysLeft} days left in the window`, kind: "urgent" }); urgency += 100 - i.daysLeft * 10; }
+        if (i.daysLeft <= 2) { reasons.push({ text: i.daysLeft <= 1 ? "Last day to reach out" : `${i.daysLeft} days left in the window`, kind: i.daysLeft <= 1 ? "urgent last" : "urgent" }); urgency += 100 - i.daysLeft * 10; }
         const t = trendLabel(i);
         if (t) { reasons.push({ text: t, kind: "trend" }); urgency += 40; }
         if (i.daysSince <= 1 && i.rank <= 8) { reasons.push({ text: "Just launched, reach out while it is fresh", kind: "fresh" }); urgency += 25; }
@@ -261,7 +261,7 @@ export default function Page() {
   return (
     <div className="app">
       <aside className="side" aria-label="Menu">
-        <div className="brand"><span className="logo" aria-hidden="true">W</span> Wingmate</div>
+        <button type="button" className="brand" onClick={() => go("today")} aria-label="Wingmate home"><span className="logo" aria-hidden="true">W</span> Wingmate</button>
         <nav className="nav" aria-label="Views">
           <button className={`navbtn ${view === "today" ? "on" : ""}`} onClick={() => go("today")}>Today <span className="count">{todo.length}</span></button>
           <button className={`navbtn ${view === "shortlist" ? "on" : ""}`} onClick={() => go("shortlist")}>Shortlist <span className="count">{shortlist.length}</span></button>
@@ -278,6 +278,12 @@ export default function Page() {
       </aside>
 
       <div className="content">
+        {view !== "today" && (
+          <div className="homebar">
+            <button type="button" className="btn" onClick={() => go("today")}>← Home</button>
+            <span className="muted small">{titles[view]}</span>
+          </div>
+        )}
         <header className="top">
           <div>
             <h1>{titles[view]}</h1>
@@ -302,7 +308,7 @@ export default function Page() {
         {view === "today" && (
           <>
             <section className="tiles" aria-label="Summary">
-              <button type="button" className="tile" onClick={() => openList("closing")} aria-label={`Close today: ${closingCount}. Show these launches`}><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></button>
+              <button type="button" className={`tile ${closingCount > 0 ? "hot" : ""}`} onClick={() => openList("closing")} aria-label={`Close today: ${closingCount}. Show these launches`}><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></button>
               <button type="button" className="tile" onClick={() => openList("trending")} aria-label={`Trending on Product Hunt: ${trendingCount}. Show these launches`}><span className="ticon"><Icon name="trend" /></span><div><div className="tlabel">Trending on Product Hunt</div><div className="tnum">{trendingCount}</div><div className="tsub">top of the leaderboard</div></div></button>
               <button type="button" className="tile" onClick={() => openOutreach("contacted")} aria-label={`Contacted: ${contactedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="send" /></span><div><div className="tlabel">Contacted</div><div className="tnum">{contactedAll.length}</div><div className="tsub">{shortlistDone} of {shortlist.length} shortlisted done</div></div></button>
               <button type="button" className="tile" onClick={() => openOutreach("replied")} aria-label={`Replies: ${repliedAll.length}. Open the Outreach tab`}><span className="ticon"><Icon name="reply" /></span><div><div className="tlabel">Replies</div><div className="tnum">{repliedAll.length}</div><div className="tsub">{replyRate === null ? "no outreach yet" : `${replyRate}% reply rate`}</div></div></button>
@@ -530,7 +536,7 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
   const trend = trendLabel(it);
   const urgentDays = it.daysLeft <= 1 ? "urgent" : it.daysLeft <= 2 ? "soon" : "";
   return (
-    <article id={`row-${it.postId}`} className={`row ${it.rank > size ? "below" : ""} ${it.status ? "done" : ""}`}>
+    <article id={`row-${it.postId}`} className={`row ${it.rank > size ? "below" : ""} ${it.status ? "done" : ""} ${!it.status && it.daysLeft <= 1 ? "hot" : ""}`}>
       <label className="pick" title="Select to compare">
         <input type="checkbox" checked={picked} onChange={onPick} aria-label={`Compare ${it.name}`} />
       </label>

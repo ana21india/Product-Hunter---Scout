@@ -99,6 +99,7 @@ Requirements: Node.js 20 or later, a Neon database, a Product Hunt API token and
    - `DATABASE_URL` is your Neon connection string.
    - `PH_TOKEN` is a Product Hunt developer token.
    - `GEMINI_API_KEY` is your Gemini API key.
+   - `SERPAPI_KEY` (optional) is a SerpAPI key. With it, founders' LinkedIn profiles are looked up through a real search service; without it, Gemini's own search is used, which rarely finds LinkedIn pages.
 3. Create the tables and default settings: `npx tsx --env-file=.env scripts/create-tables.mjs`
 4. Load the starting snapshot (one-time, takes a while because it waits for Product Hunt's request limit to reset): `npx tsx --env-file=.env scripts/run-scout.ts --snapshot`
 5. Start the app: `npm run dev`, then open http://localhost:3000
