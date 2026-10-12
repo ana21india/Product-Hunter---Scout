@@ -1,18 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Dashboard, FilteredOut, Item } from "../lib/data";
+import type { Dashboard, FilteredOut, Item, TrackedItem, WatchItem } from "../lib/data";
 import { explainBelow, explainCompare } from "../lib/explain";
 
 type SortKey = "score" | "votes" | "makers" | "newest" | "oldest";
 type DaysFilter = "" | "0-2" | "3-5" | "6-7";
-type View = "today" | "all" | "results" | "filtered";
+type View = "today" | "shortlist" | "all" | "watch" | "outreach" | "results" | "filtered";
 type Status = "contacted" | "replied" | "skipped";
 
 const SIZES = [10, 11, 12, 13, 14, 15];
 const fmtTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "never");
 const fmtShort = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const score = (n: number) => n.toFixed(1);
+const ago = (iso: string) => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+};
+const statusWord: Record<Status, string> = { contacted: "Contacted", replied: "Replied", skipped: "Skipped" };
 
 function tierClass(t: string) {
   return t === "Priority" ? "t-pri" : t === "Strong fit" ? "t-str" : t === "Consider" ? "t-con" : "t-low";
@@ -54,6 +64,7 @@ export default function Page() {
   const [saveError, setSaveError] = useState("");
   const [filteredList, setFilteredList] = useState<FilteredOut[] | null>(null);
   const [flash, setFlash] = useState<string[]>([]);
+  const [trackTab, setTrackTab] = useState<Status>("contacted");
   const ruleRef = useRef<HTMLDialogElement>(null);
   const cmpRef = useRef<HTMLDialogElement>(null);
 
@@ -93,28 +104,42 @@ export default function Page() {
     } finally { setRunning(false); }
   }
 
-  // Kavya records what she did. Saved to the database; the app never sends anything.
-  async function setStatus(it: Item, next: Status | null) {
-    const prev = it.status;
+  // Kavya records what she did. Saved to the database and kept even after a launch leaves the 7-day window. The app never sends anything.
+  async function updateStatus(postId: string, next: Status | null) {
     setSaveError("");
-    setData((d) => d && { ...d, items: d.items.map((x) => (x.postId === it.postId ? { ...x, status: next, statusAt: next ? new Date().toISOString() : null } : x)) });
+    const now = new Date().toISOString();
+    setData((d) => d && {
+      ...d,
+      items: d.items.map((x) => (x.postId === postId ? { ...x, status: next, statusAt: next ? now : null } : x)),
+      watchlist: d.watchlist.map((x) => (x.postId === postId ? { ...x, status: next, statusAt: next ? now : null } : x)),
+      tracked: next
+        ? d.tracked.some((t) => t.postId === postId)
+          ? d.tracked.map((t) => (t.postId === postId ? { ...t, status: next, statusAt: now } : t))
+          : d.tracked
+        : d.tracked.filter((t) => t.postId !== postId),
+    });
     try {
-      const r = await fetch("/api/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: it.postId, status: next }) });
+      const r = await fetch("/api/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, status: next }) });
       if (!r.ok) throw new Error();
+      load();
     } catch {
       setSaveError("Could not save that. Please try again.");
-      setData((d) => d && { ...d, items: d.items.map((x) => (x.postId === it.postId ? { ...x, status: prev } : x)) });
+      load();
     }
   }
+  const setStatus = (it: { postId: string }, next: Status | null) => updateStatus(it.postId, next);
 
   // From the "Do this today" list: show the item ticked off for a moment, then it leaves the list.
   function markFromTodo(it: Item) {
     setFlash((f) => [...f, it.postId]);
-    setStatus(it, "contacted");
+    updateStatus(it.postId, "contacted");
     setTimeout(() => setFlash((f) => f.filter((x) => x !== it.postId)), 1100);
   }
 
   const items = data?.items ?? [];
+  const watchlist = data?.watchlist ?? [];
+  const tracked = data?.tracked ?? [];
+  const th = data?.thresholds ?? { minMaker: 2, minVotes: 10 };
   const shortlist = useMemo(() => items.slice(0, size), [items, size]);
   const categories = useMemo(() => [...new Set(items.map((i) => i.category))].sort(), [items]);
   const controlsActive = !!(search || category || tier || days || sort !== "score");
@@ -161,8 +186,8 @@ export default function Page() {
 
   const closingCount = shortlist.filter((i) => !i.status && i.daysLeft <= 2).length;
   const trendingCount = shortlist.filter((i) => !i.status && trendLabel(i)).length;
-  const contactedAll = items.filter((i) => i.status === "contacted" || i.status === "replied");
-  const repliedAll = items.filter((i) => i.status === "replied");
+  const contactedAll = tracked.filter((t) => t.status === "contacted" || t.status === "replied");
+  const repliedAll = tracked.filter((t) => t.status === "replied");
   const replyRate = contactedAll.length ? Math.round((repliedAll.length / contactedAll.length) * 100) : null;
   const shortlistDone = shortlist.filter((i) => i.status && i.status !== "skipped").length;
 
@@ -171,8 +196,9 @@ export default function Page() {
   const pickedItems = picked.map((id) => items.find((i) => i.postId === id)).filter(Boolean) as Item[];
   const toggleOpen = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   const openAndScroll = (id: string) => {
+    setView("shortlist");
     setOpen((o) => (o.includes(id) ? o : [...o, id]));
-    setTimeout(() => document.getElementById(`row-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+    setTimeout(() => document.getElementById(`row-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 160);
   };
 
   const run = data?.run;
@@ -180,28 +206,64 @@ export default function Page() {
   const partial = run?.latestStatus === "partial";
   const showSnapshot = run?.lastGoodWasSnapshot && !failed;
   function clearControls() { setSearch(""); setCategory(""); setTier(""); setDays(""); setSort("score"); }
-  const effView: View = controlsActive && (view === "today") ? "all" : view;
-  const go = (v: View) => { if (v === "today") clearControls(); setView(v); };
-
-  const rowsToShow = effView === "today" ? shortlist : filtered;
+  const go = (v: View) => { if (v !== "all") clearControls(); setView(v); };
 
   useEffect(() => {
-    if (effView !== "filtered" || filteredList) return;
+    if (view !== "filtered" || filteredList) return;
     fetch("/api/launches?filtered=1", { cache: "no-store" }).then((r) => r.json()).then((j) => setFilteredList(j.filteredOut ?? [])).catch(() => setFilteredList([]));
-  }, [effView, filteredList]);
+  }, [view, filteredList]);
+
+  const titles: Record<View, string> = {
+    today: "Today's priorities", shortlist: "Shortlist", all: "All launches", watch: "Watchlist", outreach: "Outreach", results: "Results", filtered: "Filtered out",
+  };
+  const subs: Record<View, string> = {
+    today: "What to act on first, from this week's launches on Product Hunt.",
+    shortlist: "The best launches this week to reach out to, ranked.",
+    all: "Every launch that qualifies this week, with search and filters.",
+    watch: "Relevant launches that do not qualify yet. They are re-checked on every run.",
+    outreach: "Everything you have marked, kept even after a launch leaves the 7-day window.",
+    results: "What you have done and what is getting replies.",
+    filtered: "Launches judged not relevant for B2B teams that run standups.",
+  };
+
+  const rowProps = (it: Item) => ({
+    it, size, open: open.includes(it.postId), picked: picked.includes(it.postId), onPick: () => togglePick(it.postId),
+    onToggle: () => toggleOpen(it.postId), onStatus: (s: Status | null) => setStatus(it, s), newRun: run?.latestStartedAt ?? null,
+  });
+
+  const table = (rows: Item[], banding: boolean) => (
+    <div className="table" role="list">
+      <div className="thead" aria-hidden="true">
+        <span /><span>#</span><span>Launch</span><span>Signals</span><span>Window</span><span>Tier</span><span>Outreach</span><span />
+      </div>
+      {rows.map((it, idx) => {
+        const prev = rows[idx - 1];
+        const showBand = banding && sort === "score" && prev && prev.rank <= size && it.rank > size;
+        return (
+          <div key={it.postId} role="listitem" className="rowwrap">
+            {showBand && <div className="band" role="separator">The shortlist ends here (top {size}). Launches below are ranked lower.</div>}
+            <Row {...rowProps(it)} />
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="app">
       <aside className="side" aria-label="Menu">
-        <div className="brand"><span className="logo" aria-hidden="true">PS</span> Partnership Scout</div>
+        <div className="brand"><span className="logo" aria-hidden="true">W</span> Wingmate</div>
         <nav className="nav" aria-label="Views">
-          <button className={`navbtn ${effView === "today" ? "on" : ""}`} onClick={() => go("today")}>Today <span className="count">{shortlist.length}</span></button>
-          <button className={`navbtn ${effView === "all" ? "on" : ""}`} onClick={() => go("all")}>All launches <span className="count">{items.length}</span></button>
-          <button className={`navbtn ${effView === "results" ? "on" : ""}`} onClick={() => go("results")}>Results</button>
-          <button className={`navbtn ${effView === "filtered" ? "on" : ""}`} onClick={() => go("filtered")}>Filtered out <span className="count">{data?.filteredCount ?? 0}</span></button>
+          <button className={`navbtn ${view === "today" ? "on" : ""}`} onClick={() => go("today")}>Today <span className="count">{todo.length}</span></button>
+          <button className={`navbtn ${view === "shortlist" ? "on" : ""}`} onClick={() => go("shortlist")}>Shortlist <span className="count">{shortlist.length}</span></button>
+          <button className={`navbtn ${view === "all" ? "on" : ""}`} onClick={() => go("all")}>All launches <span className="count">{items.length}</span></button>
+          <button className={`navbtn ${view === "watch" ? "on" : ""}`} onClick={() => go("watch")}>Watchlist <span className="count">{watchlist.length}</span></button>
+          <button className={`navbtn ${view === "outreach" ? "on" : ""}`} onClick={() => go("outreach")}>Outreach <span className="count">{tracked.length}</span></button>
+          <button className={`navbtn ${view === "results" ? "on" : ""}`} onClick={() => go("results")}>Results</button>
+          <button className={`navbtn ${view === "filtered" ? "on" : ""}`} onClick={() => go("filtered")}>Filtered out <span className="count">{data?.filteredCount ?? 0}</span></button>
         </nav>
         <div className="sidefoot">
-          <button type="button" className="linkbtn" onClick={() => ruleRef.current?.showModal()}>How are scores calculated?</button>
+          <button type="button" className="linkbtn" onClick={() => ruleRef.current?.showModal()}>How are launches ranked?</button>
           <p className="muted small">You decide whom to contact. Nothing is ever sent from here.</p>
         </div>
       </aside>
@@ -209,8 +271,8 @@ export default function Page() {
       <div className="content">
         <header className="top">
           <div>
-            <h1>{effView === "today" ? "Today's priorities" : effView === "all" ? "All launches" : effView === "results" ? "Results" : "Filtered out"}</h1>
-            <p className="sub">Product Hunt launches from the last 7 days, ranked for partnership outreach.</p>
+            <h1>{titles[view]}</h1>
+            <p className="sub">{subs[view]}</p>
           </div>
           <div className="runbox">
             <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}</div>
@@ -225,10 +287,10 @@ export default function Page() {
         {showSnapshot && <div className="banner info" role="status">Showing the starting snapshot taken from Product Hunt at {fmtTime(run?.lastGoodAt ?? null)}. Press Run scout for fresh data.</div>}
         {!!data?.pending && <div className="banner info" role="status">{data.pending} launches are still being processed and will appear after the next run.</div>}
         {runMsg && <div className="banner ok" role="status">{runMsg}</div>}
-        {data && !items.length && !failed && <div className="banner info">No new launches in the last 7 days in your topics.</div>}
+        {data && !items.length && !watchlist.length && !failed && <div className="banner info">No new launches in the last 7 days in your topics.</div>}
         {data && !items.length && failed && !run?.lastGoodAt && <div className="banner err" role="alert">Product Hunt could not be reached and there is no saved list yet. Please try again shortly.</div>}
 
-        {effView === "today" && items.length > 0 && (
+        {view === "today" && (
           <>
             <section className="tiles" aria-label="Summary">
               <div className="tile"><span className="ticon urgent"><Icon name="clock" /></span><div><div className="tlabel">Close today</div><div className="tnum">{closingCount}</div><div className="tsub">window ends in 2 days or less</div></div></div>
@@ -243,7 +305,7 @@ export default function Page() {
                 <span className="muted small">From your shortlist, not yet contacted</span>
               </div>
               {todo.length === 0 ? (
-                <p className="muted">Nothing urgent right now. Every shortlisted launch is either contacted or has time left.</p>
+                <p className="muted todoempty">Nothing urgent right now. Every shortlisted launch is either contacted or has time left.</p>
               ) : (
                 <ol className="todolist">
                   {todo.map(({ it, reasons }) => (
@@ -264,11 +326,47 @@ export default function Page() {
                   ))}
                 </ol>
               )}
+              <div className="todofoot"><button type="button" className="linkbtn" onClick={() => go("shortlist")}>See the full shortlist</button></div>
             </section>
           </>
         )}
 
-        {(effView === "today" || effView === "all") && (
+        {view === "shortlist" && (
+          <>
+            <section className="card controls" aria-label="Shortlist size">
+              <div className="field">
+                <label htmlFor="size">Shortlist size</label>
+                <select id="size" value={size} onChange={(e) => changeSize(Number(e.target.value))}>
+                  {SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <p className="muted small grow">
+                A launch qualifies when its makers have written at least {th.minMaker} comments and it has at least {th.minVotes} upvotes.
+                {items.length < size ? ` Only ${items.length} qualify right now, so the shortlist is shorter than ${size}. The rest are on the Watchlist.` : ""}
+              </p>
+            </section>
+            {table(shortlist, false)}
+            {items.length > size && (
+              <>
+                <div className="band strong" role="separator">The shortlist ends here. {items.length - size} more launches are ranked below.</div>
+                <button className="btn primary wide" onClick={() => go("all")}>See all launches ({items.length})</button>
+                <section className="peek card" aria-labelledby="peek-h">
+                  <h3 id="peek-h">Just below the cutoff</h3>
+                  <ul>
+                    {items.slice(size, size + 3).map((b) => (
+                      <li key={b.postId}>
+                        <strong>#{b.rank} {b.name}</strong>
+                        <div className="muted small">{explainBelow(b as any, items[size - 1] as any)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </>
+            )}
+          </>
+        )}
+
+        {view === "all" && (
           <>
             <section className="card controls" aria-label="Search, filter and sort">
               <div className="field grow">
@@ -301,71 +399,44 @@ export default function Page() {
               <div className="field">
                 <label htmlFor="sort">Sort by</label>
                 <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                  <option value="score">Final score</option>
+                  <option value="score">Rank</option>
                   <option value="votes">Upvotes</option>
                   <option value="makers">Maker comments</option>
                   <option value="newest">Days since launch (newest first)</option>
                   <option value="oldest">Days since launch (oldest first)</option>
                 </select>
               </div>
-              <div className="field">
-                <label htmlFor="size">Shortlist size</label>
-                <select id="size" value={size} onChange={(e) => changeSize(Number(e.target.value))}>
-                  {SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
               {controlsActive && <button className="btn" onClick={clearControls}>Clear</button>}
             </section>
-
-            <h2 className="viewtitle">
-              {effView === "today" ? `Shortlist: top ${shortlist.length}` : `${filtered.length}${filtered.length !== items.length ? ` of ${items.length}` : ""} launches`}
-            </h2>
-            {controlsActive && <p className="muted small">Searching and filtering cover every launch, so a low rank never hides a product.</p>}
-
-            <div className="table" role="list">
-              <div className="thead" aria-hidden="true">
-                <span /><span>#</span><span>Launch</span><span>Signals</span><span>Window</span><span>Score</span><span>Tier</span><span>Outreach</span><span />
-              </div>
-              {rowsToShow.map((it, idx) => {
-                const prev = rowsToShow[idx - 1];
-                const showBand = sort === "score" && prev && prev.rank <= size && it.rank > size;
-                return (
-                  <div key={it.postId} role="listitem" className="rowwrap">
-                    {showBand && <div className="band" role="separator">The shortlist ends here (top {size}). Launches below are ranked lower.</div>}
-                    <Row it={it} size={size} open={open.includes(it.postId)} picked={picked.includes(it.postId)} onPick={() => togglePick(it.postId)}
-                      onToggle={() => toggleOpen(it.postId)} onStatus={(s) => setStatus(it, s)} newRun={run?.latestStartedAt ?? null} />
-                  </div>
-                );
-              })}
-            </div>
-
-            {effView === "today" && items.length > size && (
-              <>
-                <div className="band strong" role="separator">The shortlist ends here. {items.length - size} more launches are ranked below.</div>
-                <button className="btn primary wide" onClick={() => go("all")}>See all launches ({items.length})</button>
-                {items[size - 1] && (
-                  <section className="peek card" aria-labelledby="peek-h">
-                    <h3 id="peek-h">Just below the cutoff</h3>
-                    <ul>
-                      {items.slice(size, size + 3).map((b) => (
-                        <li key={b.postId}>
-                          <strong>#{b.rank} {b.name}</strong> · score {score(b.finalScore)}
-                          <div className="muted small">{explainBelow(b as any, items[size - 1] as any)}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-              </>
-            )}
+            <h2 className="viewtitle">{filtered.length}{filtered.length !== items.length ? ` of ${items.length}` : ""} launches</h2>
+            {table(filtered, true)}
           </>
         )}
 
-        {effView === "results" && <Results items={items} size={size} />}
+        {view === "watch" && (
+          <>
+            <section className="card note">
+              <p>These launches fit your four areas, but they do not qualify for the ranking yet: makers need at least {th.minMaker} comments and the launch needs at least {th.minVotes} upvotes. Each run checks them again, and a launch moves up as soon as it qualifies. Nothing here is hidden from you.</p>
+            </section>
+            <div className="table" role="list">
+              {watchlist.length === 0 && <p className="muted">Nothing waiting. Every relevant launch this week already qualifies.</p>}
+              {watchlist.slice(0, 200).map((w) => (
+                <div key={w.postId} role="listitem" className="rowwrap"><WatchRow w={w} onStatus={(s) => setStatus(w, s)} /></div>
+              ))}
+              {watchlist.length > 200 && <p className="muted small">Showing the 200 with the most upvotes of {watchlist.length}.</p>}
+            </div>
+          </>
+        )}
 
-        {effView === "filtered" && (
+        {view === "outreach" && (
+          <Outreach tracked={tracked} tab={trackTab} setTab={setTrackTab} onStatus={updateStatus} />
+        )}
+
+        {view === "results" && <Results items={items} tracked={tracked} size={size} />}
+
+        {view === "filtered" && (
           <section className="card" aria-label="Filtered out launches">
-            <p className="muted">Launches judged not relevant for B2B teams that run standups. They are never ranked.{filteredList === null ? " Loading…" : filteredList.length > 300 ? ` Showing the 300 most upvoted of ${filteredList.length}.` : ""}</p>
+            <p className="muted">They are never ranked.{filteredList === null ? " Loading…" : filteredList.length > 300 ? ` Showing the 300 most upvoted of ${filteredList.length}.` : ""}</p>
             <ul className="filteredlist">
               {(filteredList ?? []).slice(0, 300).map((f) => (
                 <li key={f.postId}>
@@ -400,21 +471,37 @@ export default function Page() {
 
       <dialog ref={ruleRef} className="modal" aria-labelledby="rule-h" onClick={(e) => { if (e.target === ruleRef.current) ruleRef.current?.close(); }}>
         <div className="modalbody">
-          <h2 id="rule-h">How scores are calculated</h2>
-          <p><strong>Final score = 60% × Upvote score + 40% × Maker-comment score</strong>, from 0 to 100.</p>
+          <h2 id="rule-h">How launches are ranked</h2>
           <ul>
-            <li><strong>Upvote score</strong> = this product&apos;s upvotes ÷ the highest upvote count in the current 7-day set × 100.</li>
-            <li><strong>Maker-comment score</strong> = this product&apos;s maker comments ÷ the highest maker-comment count in the current set × 100. Maker comments are comments and replies written by the product&apos;s own makers on its launch page, never all community comments.</li>
-            <li>If nobody in the set has any maker comments, that part scores 0 for everyone.</li>
+            <li><strong>Relevant:</strong> the product&apos;s customers are the kind of people who run team standups, in project management, HR tech, developer productivity or team communication.</li>
+            <li><strong>Qualifies:</strong> the makers have written at least {th.minMaker} comments or replies (more than the usual intro post) and the launch has at least {th.minVotes} upvotes. Others wait on the Watchlist and are re-checked on every run.</li>
+            <li><strong>Ranking score</strong> = 60% × Upvote score + 40% × Maker-comment score, from 0 to 100.</li>
+            <li><strong>Upvote score</strong> = the launch&apos;s upvotes ÷ the highest upvote count among qualifying launches × 100.</li>
+            <li><strong>Maker-comment score</strong> = its maker comments ÷ the highest maker-comment count among qualifying launches × 100. Maker comments are comments and replies written by the product&apos;s own makers, never all community comments.</li>
+            <li>One very popular launch sets the benchmark, so most scores look small next to it. That is why the lists show rank and tier. The score itself is in each launch&apos;s details and in Compare.</li>
             <li><strong>Ties:</strong> more maker comments first, then more upvotes.</li>
             <li><strong>Tiers by rank:</strong> 1–4 Priority, 5–8 Strong fit, 9–12 Consider, 13 and below Lower priority.</li>
-            <li><strong>The set</strong> is every relevant launch from the last 7 days, without duplicates. Relevant means its customers are the kind of people who run team standups, in one of your four areas.</li>
-            <li>Scores are recalculated from the latest numbers every time the page is shown. &quot;Window&quot; shows how many days of the 7-day outreach window are left.</li>
-            <li>&quot;Trending&quot; uses Product Hunt&apos;s own leaderboard ranks and recent upvote gains. The Contacted, Replied and Skip buttons only save your own notes.</li>
+            <li>&quot;Window&quot; shows how many days of the 7-day outreach window are left. &quot;Trending&quot; uses Product Hunt&apos;s own leaderboard ranks and recent upvote gains.</li>
+            <li>The Contacted, Replied and Skip buttons only save your own notes.</li>
           </ul>
           <button type="button" className="btn primary" onClick={() => ruleRef.current?.close()}>Close</button>
         </div>
       </dialog>
+    </div>
+  );
+}
+
+function StatusButtons({ name, status, onStatus }: { name: string; status: Status | null; onStatus: (s: Status | null) => void }) {
+  const btn = (s: Status, label: string) => (
+    <button type="button" className={`seg ${status === s ? "on " + s : ""}`} aria-pressed={status === s} onClick={() => onStatus(status === s ? null : s)}>
+      {label}
+    </button>
+  );
+  return (
+    <div className="outreach" role="group" aria-label={`Outreach status for ${name}`}>
+      {btn("contacted", "Contacted")}
+      {btn("replied", "Replied")}
+      {btn("skipped", "Skip")}
     </div>
   );
 }
@@ -425,11 +512,6 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
   const isNew = !!newRun && it.firstSeenAt >= newRun;
   const trend = trendLabel(it);
   const urgentDays = it.daysLeft <= 1 ? "urgent" : it.daysLeft <= 2 ? "soon" : "";
-  const btn = (s: Status, label: string) => (
-    <button type="button" className={`seg ${it.status === s ? "on " + s : ""}`} aria-pressed={it.status === s} onClick={() => onStatus(it.status === s ? null : s)}>
-      {label}
-    </button>
-  );
   return (
     <article id={`row-${it.postId}`} className={`row ${it.rank > size ? "below" : ""} ${it.status ? "done" : ""}`}>
       <label className="pick" title="Select to compare">
@@ -448,14 +530,9 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
       <div className="metawrap">
         <div className="signals" title="Upvotes and maker comments"><span>▲ {it.votes}</span><span>💬 {it.makerComments}</span></div>
         <div className={`window ${urgentDays}`}>{daysLeftText(it.daysLeft)}</div>
-        <div className="scorecell"><strong>{score(it.finalScore)}</strong><div className="bar" role="img" aria-label={`Final score ${score(it.finalScore)} out of 100`}><span style={{ width: `${Math.max(2, Math.min(100, it.finalScore))}%` }} /></div></div>
         <div><span className={`chip tier ${tierClass(it.tier)}`}>{it.tier}</span></div>
       </div>
-      <div className="outreach" role="group" aria-label={`Outreach status for ${it.name}`}>
-        {btn("contacted", "Contacted")}
-        {btn("replied", "Replied")}
-        {btn("skipped", "Skip")}
-      </div>
+      <StatusButtons name={it.name} status={it.status} onStatus={onStatus} />
       <button type="button" className="more" aria-expanded={open} onClick={onToggle}>
         {open ? "Hide" : "View angle"} <span className={`chev ${open ? "up" : ""}`}><Icon name="chevron" /></span>
       </button>
@@ -468,8 +545,8 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
               {it.angleState === "thin" && "Angle unavailable"}
               {it.angleState === "missing" && "Angle unavailable, retry (press Run scout)"}
             </p>
-            <h4>Why this score</h4>
-            <p className="muted">{it.rationale}. Upvotes add {score(it.upvotePoints)} points and maker comments add {score(it.makerPoints)}.</p>
+            <h4>How it ranked</h4>
+            <p className="muted">Score {score(it.finalScore)} of 100, where the most popular launch this week is the benchmark. {it.rationale}. Upvotes add {score(it.upvotePoints)} points and maker comments add {score(it.makerPoints)}.</p>
           </div>
           <div className="dcol">
             <h4>{it.founderNames.length > 1 ? "Founders" : "Founder"} <span className="muted small" title="Makers listed on this launch on Product Hunt">(as listed on Product Hunt)</span></h4>
@@ -497,8 +574,65 @@ function Row({ it, size, open, picked, onPick, onToggle, onStatus, newRun }: {
   );
 }
 
-function Results({ items, size }: { items: Item[]; size: number }) {
-  const acted = items.filter((i) => i.status);
+function WatchRow({ w, onStatus }: { w: WatchItem; onStatus: (s: Status | null) => void }) {
+  return (
+    <article className={`row watch ${w.status ? "done" : ""}`}>
+      <div className="launch wlaunch">
+        <div className="lname"><a href={w.url ?? "#"} target="_blank" rel="noreferrer">{w.name}</a></div>
+        <div className="lline">{w.oneLiner ?? ""}</div>
+        {w.serves && <div className="lserves">Serves: {w.serves}</div>}
+        <div className="chips">{w.reasons.map((r) => <span key={r} className="chip">{r}</span>)}</div>
+      </div>
+      <div className="metawrap wmeta">
+        <div className="signals"><span>▲ {w.votes}</span><span>💬 {w.makerComments}</span></div>
+        <div className={`window ${w.daysLeft <= 1 ? "urgent" : w.daysLeft <= 2 ? "soon" : ""}`}>{w.daysLeft <= 0 ? "Window ending" : daysLeftText(w.daysLeft)}</div>
+      </div>
+      <StatusButtons name={w.name} status={w.status} onStatus={onStatus} />
+    </article>
+  );
+}
+
+function Outreach({ tracked, tab, setTab, onStatus }: { tracked: TrackedItem[]; tab: Status; setTab: (s: Status) => void; onStatus: (id: string, s: Status | null) => void }) {
+  const tabs: Status[] = ["contacted", "replied", "skipped"];
+  const count = (s: Status) => tracked.filter((t) => t.status === s).length;
+  const list = tracked.filter((t) => t.status === tab);
+  return (
+    <>
+      <div className="subtabs" role="tablist" aria-label="Outreach status">
+        {tabs.map((s) => (
+          <button key={s} role="tab" aria-selected={tab === s} className={`subtab ${tab === s ? "on" : ""}`} onClick={() => setTab(s)}>
+            {statusWord[s]} <span className="count">{count(s)}</span>
+          </button>
+        ))}
+      </div>
+      {tracked.length === 0 && <div className="banner info">Nothing marked yet. Use the Contacted, Replied and Skip buttons on a launch and it will be kept here, even after the launch leaves the 7-day window.</div>}
+      {tracked.length > 0 && list.length === 0 && <p className="muted">Nothing marked as {statusWord[tab].toLowerCase()} yet.</p>}
+      <div className="table" role="list">
+        {list.map((t) => (
+          <div key={t.postId} role="listitem" className="rowwrap">
+            <article className="row tracked">
+              <div className="launch">
+                <div className="lname"><a href={t.url ?? "#"} target="_blank" rel="noreferrer">{t.name}</a></div>
+                <div className="lserves">
+                  {statusWord[t.status]} {ago(t.statusAt)} · ▲ {t.votes} · {t.inWindow ? daysLeftText(t.daysLeft) : "launch window ended"}
+                  {t.rank ? ` · ranked #${t.rank}, ${t.tier}` : t.inWindow ? " · not in this week's ranking" : ""}
+                </div>
+              </div>
+              <div className="trackactions">
+                {t.status !== "contacted" && <button className="btn" onClick={() => onStatus(t.postId, "contacted")}>Mark contacted</button>}
+                {t.status !== "replied" && <button className="btn" onClick={() => onStatus(t.postId, "replied")}>Mark replied</button>}
+                {t.status !== "skipped" && <button className="btn" onClick={() => onStatus(t.postId, "skipped")}>Skip</button>}
+                <button className="btn" onClick={() => onStatus(t.postId, null)}>Put back to to-do</button>
+              </div>
+            </article>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Results({ items, tracked, size }: { items: Item[]; tracked: TrackedItem[]; size: number }) {
   const group = (keyOf: (i: Item) => string, keys: string[]) =>
     keys.map((k) => {
       const inGroup = items.filter((i) => keyOf(i) === k);
@@ -525,10 +659,13 @@ function Results({ items, size }: { items: Item[]; size: number }) {
       </div>
     </section>
   );
+  const all = tracked.length;
+  const contacted = tracked.filter((t) => t.status === "contacted" || t.status === "replied").length;
+  const replied = tracked.filter((t) => t.status === "replied").length;
   return (
     <>
-      <p className="muted">What you have done with the launches, and what is getting replies. These numbers come only from the Contacted, Replied and Skip buttons you press.</p>
-      {acted.length === 0 && <div className="banner info">Nothing recorded yet. Use the buttons on each launch and the picture will build up here.</div>}
+      <p className="muted">These numbers come only from the Contacted, Replied and Skip buttons you press. Overall so far: {contacted} contacted, {replied} replied{contacted ? ` (${Math.round((replied / contacted) * 100)}% reply rate)` : ""}, {tracked.filter((t) => t.status === "skipped").length} skipped.</p>
+      {all === 0 && <div className="banner info">Nothing recorded yet. Use the buttons on each launch and the picture will build up here.</div>}
       {table("By tier", tiers)}
       {table("By category", cats)}
     </>
@@ -541,7 +678,7 @@ function CompareTable({ items }: { items: Item[] }) {
   const rows: [string, (i: Item) => string][] = [
     ["Rank", (i) => `#${i.rank}`],
     ["Tier", (i) => i.tier],
-    ["Final score", (i) => score(i.finalScore)],
+    ["Score (0–100)", (i) => score(i.finalScore)],
     ["Upvote score (0–100)", (i) => score(i.upvoteScore)],
     ["Maker-comment score (0–100)", (i) => score(i.makerScore)],
     ["Points from upvotes (60%)", (i) => score(i.upvotePoints)],

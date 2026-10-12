@@ -1,4 +1,4 @@
-# Partnership Scout
+# Wingmate
 
 A small web app that gives a partnerships lead a **ranked outreach list of Product Hunt launches from the last 7 days**, on demand.
 
@@ -8,14 +8,17 @@ A small web app that gives a partnerships lead a **ranked outreach list of Produ
 
 Kavya leads partnerships at a B2B SaaS company that helps remote teams run async standups. She contacts founders of newly launched tools in the first seven days after launch, because after day seven the conversation gets much harder. Until now she checked Product Hunt by hand every morning (30 to 40 minutes), and still missed launches that appeared after her check or gained traction later in the day.
 
-Partnership Scout replaces that scan. When she clicks **Run scout**, the app pulls fresh data from Product Hunt, ranks every relevant launch from the last 7 days, and shows her enough to decide whom to approach. **She decides whom to contact. The app never sends anything to anyone.**
+Wingmate, a companion that helps her find better partnerships, replaces that scan. When she clicks **Run scout**, the app pulls fresh data from Product Hunt, ranks every relevant launch from the last 7 days, and shows her enough to decide whom to approach. **She decides whom to contact. The app never sends anything to anyone.**
 
 ## What she sees
 
+- **Tabs:** Today, Shortlist, All launches, Watchlist, Outreach, Results and Filtered out.
 - **A 10-second "Today" view.** Four summary tiles (launches to close today, trending on Product Hunt, contacted, replies) and a "Do this today" list of the shortlisted launches that need action first: windows ending in 2 days or less, launches ranked high on Product Hunt's own leaderboard, and fresh launches near the top. Each has a "Mark contacted" button.
-- **Shortlist** of the top 10 to 15 launches (she picks the size, default 15), with a clear "shortlist ends here" band and a button to see all launches.
+- **Shortlist** tab: the top 10 to 15 launches (she picks the size, default 15), with a clear "shortlist ends here" band and a button to see all launches. If fewer launches qualify than the size she chose, it is shorter.
+- **Watchlist** tab: relevant launches that do not qualify yet (see below). They are re-checked on every run, so nothing relevant goes unseen.
+- **Outreach** tab: everything she has marked Contacted, Replied or Skipped, kept even after a launch leaves the 7-day window, with a way to change or undo each one.
 - **All launches** view with every ranked launch, plus search (name, founder, one-liner), filters (category, tier, days since launch) and sorting (score, upvotes, maker comments, days since launch).
-- **Compact rows.** Each launch is one row: rank, name and one-line description, who it serves, upvotes and maker comments, days left in the 7-day window, score bar and tier. The longer details (the suggested angle, why it scored this way, founders, links) open with "View angle".
+- **Compact rows.** Each launch is one row: rank, name and one-line description, who it serves, upvotes and maker comments, days left in the 7-day window and tier. Score numbers are not shown on the rows; they are in each launch's details and in Compare. The longer details (the suggested angle, why it scored this way, founders, links) open with "View angle".
 - **Outreach tracking.** Each row has Contacted, Replied and Skip buttons. They save Kavya's own notes only; the app never sends anything. A **Results** view then shows contacted, replied and reply rate by tier and by category, so she can see what is working.
 - **Compare** up to four launches side by side, with a plain explanation of why one is ranked above the others.
 - **Filtered out** view: launches judged not relevant for B2B teams, with the reason. They are never ranked.
@@ -31,7 +34,7 @@ Maker-comment score  = product's maker comments / highest maker comments in the 
 ```
 
 - **Maker comments** are comments and replies written by the product's own makers on its launch page. They are never all community comments. A comment is attributed to a maker by matching the comment's user id with the launch's maker ids (never by display name).
-- **The set** is every relevant launch posted in the last 7 days, without duplicates.
+- **The set** is every relevant launch posted in the last 7 days, without duplicates, **that qualifies**. A launch qualifies when its makers have written at least 2 comments or replies (more than the usual single intro post) and it has at least 10 upvotes (roughly the top 10% of launches in a typical week). This is an addition to the written rubric: in testing, 41 of 310 relevant launches had no maker comments at all (mostly large companies whose makers do not reply), 248 had only the intro comment, and the median launch had 1 upvote. Launches that do not qualify yet stay on the Watchlist and are re-checked every run. The two thresholds are constants in `src/lib/scoring.ts`.
 - If the highest value of a metric is 0, that metric scores 0 for everyone (no division by zero).
 - **Ties:** more maker comments first, then more upvotes, then the older post.
 - **Tiers by rank:** 1 to 4 Priority, 5 to 8 Strong fit, 9 to 12 Consider, 13 and below Lower priority.

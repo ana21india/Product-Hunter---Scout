@@ -7,8 +7,8 @@ const interTight = Inter_Tight({ subsets: ["latin"], variable: "--font-tight", d
 const caveat = Caveat({ subsets: ["latin"], variable: "--font-hand", display: "swap", weight: ["500", "600"] });
 
 export const metadata: Metadata = {
-  title: "Partnership Scout",
-  description: "Ranked outreach list of Product Hunt launches from the last 7 days.",
+  title: "Wingmate",
+  description: "Your companion for finding better partnerships: Product Hunt launches from the last 7 days, ranked for outreach.",
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 

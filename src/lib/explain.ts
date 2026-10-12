@@ -22,16 +22,10 @@ export function explainCompare(hi: Item, lo: Item): string {
 
 // Why `item` (just below the shortlist) ranks lower than the last shortlisted product.
 export function explainBelow(item: Item, cutoff: Item): string {
-  const upDiff = cutoff.upvotePoints - item.upvotePoints;
-  const mkDiff = cutoff.makerPoints - item.makerPoints;
+  // Plain wording without score numbers: what the launch has less of than the last one on the shortlist.
   const bits: string[] = [];
-  if (cutoff.finalScore - item.finalScore < 0.05) {
-    const why = item.makerComments < cutoff.makerComments ? "fewer maker comments"
-      : item.votes < cutoff.votes ? "fewer upvotes" : "a later position on the tie-break (older post first)";
-    return `Same score as rank ${cutoff.rank} (${pts(cutoff.finalScore)}), placed lower because of ${why}`;
-  }
-  if (upDiff > 0.05) bits.push(`fewer upvotes (${item.votes} vs ${cutoff.votes})`);
-  if (mkDiff > 0.05) bits.push(`fewer maker comments (${item.makerComments} vs ${cutoff.makerComments})`);
-  if (!bits.length) bits.push("a slightly lower combined score");
-  return `${pts(cutoff.finalScore - item.finalScore)} points behind rank ${cutoff.rank}: ${bits.join(" and ")}`;
+  if (item.votes < cutoff.votes) bits.push(`fewer upvotes (${item.votes} vs ${cutoff.votes})`);
+  if (item.makerComments < cutoff.makerComments) bits.push(`fewer maker comments (${item.makerComments} vs ${cutoff.makerComments})`);
+  if (!bits.length) bits.push("a slightly lower combined result");
+  return `Ranked just below #${cutoff.rank}: ${bits.join(" and ")}`;
 }

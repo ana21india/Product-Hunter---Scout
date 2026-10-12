@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreLaunches, eligibleSet, tierForRank } from "./scoring";
+import { scoreLaunches, eligibleSet, tierForRank, qualifies, MIN_MAKER_COMMENTS, MIN_UPVOTES } from "./scoring";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
 const ago = (days: number) => new Date(NOW.getTime() - days * 864e5).toISOString();
@@ -115,4 +115,14 @@ test("days since launch, days left, and the Closing flag (day 6 to 7)", () => {
 
 test("empty set returns an empty list", () => {
   assert.deepEqual(scoreLaunches([], NOW), []);
+});
+
+test("qualification: makers must be active and the launch needs some traction", () => {
+  assert.equal(MIN_MAKER_COMMENTS, 2);
+  assert.equal(MIN_UPVOTES, 10);
+  assert.equal(qualifies({ votes: 478, makerComments: 68 }), true);
+  assert.equal(qualifies({ votes: 186, makerComments: 0 }), false); // big launch, makers silent
+  assert.equal(qualifies({ votes: 150, makerComments: 1 }), false); // only the intro comment
+  assert.equal(qualifies({ votes: 3, makerComments: 5 }), false); // active makers but no traction yet
+  assert.equal(qualifies({ votes: 10, makerComments: 2 }), true); // exactly at both thresholds
 });

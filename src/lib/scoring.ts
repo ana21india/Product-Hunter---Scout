@@ -7,6 +7,14 @@ export const W_MAKER = 0.4;
 const DAY_MS = 864e5;
 const TIE_EPS = 1e-9;
 
+// Qualification: a launch is ranked only when its makers are visibly active and it has some traction.
+// Makers must have written at least MIN_MAKER_COMMENTS comments or replies (more than the usual single intro post),
+// and the launch needs at least MIN_UPVOTES upvotes (roughly the top 10% of launches in a typical week).
+// Launches that do not qualify yet stay visible on the Watchlist and are re-checked on every run.
+export const MIN_MAKER_COMMENTS = 2;
+export const MIN_UPVOTES = 10;
+export const qualifies = (r: { votes: number; makerComments: number }) => r.makerComments >= MIN_MAKER_COMMENTS && r.votes >= MIN_UPVOTES;
+
 export type Tier = "Priority" | "Strong fit" | "Consider" | "Lower priority";
 
 export type RawLaunch = {

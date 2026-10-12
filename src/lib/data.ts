@@ -1,5 +1,5 @@
 import { q } from "./db";
-import { scoreLaunches, rationale, WINDOW_DAYS } from "./scoring";
+import { scoreLaunches, rationale, WINDOW_DAYS, qualifies, MIN_MAKER_COMMENTS, MIN_UPVOTES } from "./scoring";
 
 export type Item = {
   postId: string; slug: string; name: string; tagline: string | null; url: string | null;
@@ -52,7 +52,18 @@ export type RunInfo = {
   lastGoodAt: string | null; lastGoodWasSnapshot: boolean; latestStatus: string | null; latestAt: string | null;
   latestStartedAt: string | null; latestNote: string | null; latestError: string | null; newLaunches: number | null; refreshed: number | null; running: boolean;
 };
-export type Dashboard = { items: Item[]; filteredOut: FilteredOut[]; filteredCount: number; pending: number; run: RunInfo; windowDays: number; serverTime: string };
+// A relevant launch that does not qualify for the ranking yet (makers not active enough, or too few upvotes). Re-checked on every run.
+export type WatchItem = {
+  postId: string; name: string; url: string | null; oneLiner: string | null; serves: string | null; category: string;
+  votes: number; makerComments: number; daysSince: number; daysLeft: number; reasons: string[];
+  status: "contacted" | "replied" | "skipped" | null; statusAt: string | null;
+};
+// Anything Kavya has marked (contacted, replied or skipped), even after the launch has left the 7-day window.
+export type TrackedItem = {
+  postId: string; name: string; url: string | null; status: "contacted" | "replied" | "skipped"; statusAt: string;
+  votes: number; inWindow: boolean; daysLeft: number; rank: number | null; tier: string | null;
+};
+export type Dashboard = { items: Item[]; watchlist: WatchItem[]; tracked: TrackedItem[]; thresholds: { minMaker: number; minVotes: number }; filteredOut: FilteredOut[]; filteredCount: number; pending: number; run: RunInfo; windowDays: number; serverTime: string };
 
 // Reads only from the database. Scores and ranks are computed here, from the current eligible set, on every read.
 export async function getDashboard(includeFiltered = false): Promise<Dashboard> {
@@ -65,7 +76,9 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
      LEFT JOIN actions act ON act.post_id = l.post_id
      WHERE l.created_at > now() - interval '${WINDOW_DAYS} days'`,
   );
-  const ready = rows.filter((r) => r.relevant && r.maker_comment_count !== null);
+  const readyAll = rows.filter((r) => r.relevant && r.maker_comment_count !== null);
+  const ready = readyAll.filter((r) => qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count }));
+  const waiting = readyAll.filter((r) => !qualifies({ votes: r.votes_count, makerComments: r.maker_comment_count }));
   const pending = rows.filter((r) => r.relevant && r.maker_comment_count === null).length;
   const filteredOut: FilteredOut[] = rows.filter((r) => !r.relevant).map((r) => ({
     postId: r.post_id, name: r.name, tagline: r.tagline, url: r.url, reason: r.reason, serves: r.serves ?? null, votes: r.votes_count,
@@ -106,6 +119,33 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
     };
   });
 
+  const dayMs = 864e5;
+  const watchlist: WatchItem[] = waiting.map((r) => {
+    const daysSince = Math.floor((Date.now() - new Date(r.created_at).getTime()) / dayMs);
+    const reasons: string[] = [];
+    if (r.maker_comment_count === 0) reasons.push("Makers have not commented yet");
+    else if (r.maker_comment_count < MIN_MAKER_COMMENTS) reasons.push("Only an intro comment from the makers so far");
+    if (r.votes_count < MIN_UPVOTES) reasons.push(`Under ${MIN_UPVOTES} upvotes so far`);
+    return {
+      postId: r.post_id, name: r.name, url: r.url, oneLiner: r.one_liner ?? null, serves: r.serves ?? null, category: r.category,
+      votes: r.votes_count, makerComments: r.maker_comment_count, daysSince, daysLeft: WINDOW_DAYS - daysSince, reasons,
+      status: (r.action_status ?? null) as WatchItem["status"], statusAt: r.action_at ? new Date(r.action_at).toISOString() : null,
+    };
+  }).sort((a, b) => b.votes - a.votes || b.makerComments - a.makerComments);
+
+  const trackedRows = await q(
+    `SELECT a.post_id, a.status, a.updated_at, l.name, l.url, l.votes_count, l.created_at FROM actions a JOIN launches l ON l.post_id = a.post_id ORDER BY a.updated_at DESC`,
+  );
+  const rankById = new Map(items.map((i) => [i.postId, i]));
+  const tracked: TrackedItem[] = trackedRows.map((t) => {
+    const daysSince = Math.floor((Date.now() - new Date(t.created_at).getTime()) / dayMs);
+    const ranked = rankById.get(t.post_id);
+    return {
+      postId: t.post_id, name: t.name, url: t.url, status: t.status, statusAt: new Date(t.updated_at).toISOString(), votes: t.votes_count,
+      inWindow: daysSince < WINDOW_DAYS, daysLeft: Math.max(0, WINDOW_DAYS - daysSince), rank: ranked?.rank ?? null, tier: ranked?.tier ?? null,
+    };
+  });
+
   const runs = await q(`SELECT status, started_at, finished_at, note, error, new_launches, refreshed FROM run_log ORDER BY id DESC LIMIT 30`);
   const latest = runs[0];
   const good = runs.find((r) => r.status === "live" || r.status === "partial");
@@ -121,5 +161,5 @@ export async function getDashboard(includeFiltered = false): Promise<Dashboard> 
     refreshed: latest?.refreshed ?? null,
     running: latest?.status === "running" && Date.now() - new Date(latest.started_at).getTime() < 10 * 60e3,
   };
-  return { items, filteredOut: includeFiltered ? filteredOut : [], filteredCount: filteredOut.length, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
+  return { items, watchlist, tracked, thresholds: { minMaker: MIN_MAKER_COMMENTS, minVotes: MIN_UPVOTES }, filteredOut: includeFiltered ? filteredOut : [], filteredCount: filteredOut.length, pending, run, windowDays: WINDOW_DAYS, serverTime: new Date().toISOString() };
 }
