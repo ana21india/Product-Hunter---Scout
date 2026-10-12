@@ -10,6 +10,8 @@ type View = "today" | "shortlist" | "all" | "watch" | "outreach" | "results" | "
 type Status = "contacted" | "replied" | "skipped";
 
 const SIZES = [10, 11, 12, 13, 14, 15];
+// The automatic sync runs at 00:00, 06:00, 12:00 and 18:00 UTC, so the next one is the next of those slots (shown in the viewer's own time).
+const nextSync = () => { const t = new Date(); t.setUTCMinutes(0, 0, 0); t.setUTCHours(Math.floor(t.getUTCHours() / 6) * 6 + 6); return t.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); };
 const fmtTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "never");
 const fmtShort = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const score = (n: number) => n.toFixed(1);
@@ -292,7 +294,7 @@ export default function Page() {
             <p className="sub">{subs[view]}</p>
           </div>
           <div className="runbox">
-            <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}<span> · updates automatically every 6 hours</span></div>
+            <div className="lastrun" aria-live="polite">Last run: {fmtTime(run?.lastGoodAt ?? null)}<span> · next automatic run: {nextSync()}</span></div>
             <button className="btn primary" onClick={runScout} disabled={running} aria-busy={running}>{running ? "Running…" : "Run scout"}</button>
           </div>
         </header>
