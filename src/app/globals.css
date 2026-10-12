@@ -81,7 +81,8 @@ input[type="search"], select { min-height: 44px; padding: 8px 10px; border-radiu
 .tag.new { background: var(--ok-bg); color: var(--ok-text); font-weight: 700; }
 .pick { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; cursor: pointer; }
 .pick input { width: 22px; height: 22px; }
-.oneliner { margin: 4px 0 8px; }
+.oneliner { margin: 4px 0 4px; }
+.serves { margin: 0 0 8px; color: var(--muted); font-size: 0.92rem; }
 .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 16px; margin: 0 0 10px; }
 .meta dt { font-size: 0.78rem; color: var(--muted); }
 .meta dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }

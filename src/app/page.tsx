@@ -163,7 +163,7 @@ export default function Page() {
                 <li key={f.postId}>
                   <a href={f.url ?? "#"} target="_blank" rel="noreferrer">{f.name}</a>
                   <span className="muted"> · {f.votes} upvotes</span>
-                  <div className="muted small">{f.reason}</div>
+                  <div className="muted small">{f.serves ? `Serves: ${f.serves}. ` : ""}{f.reason}</div>
                 </li>
               ))}
             </ul>
@@ -318,6 +318,7 @@ function Row({ it, size, picked, onPick, newRun }: { it: Item; size: number; pic
         </label>
       </div>
       <p className="oneliner">{it.oneLiner ?? it.tagline ?? ""}</p>
+      {it.serves && <p className="serves"><strong>Serves:</strong> {it.serves}</p>}
       <dl className="meta">
         <div><dt>Category</dt><dd>{it.category}</dd></div>
         <div>

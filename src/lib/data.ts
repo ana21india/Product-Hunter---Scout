@@ -3,7 +3,7 @@ import { scoreLaunches, rationale, WINDOW_DAYS } from "./scoring";
 
 export type Item = {
   postId: string; slug: string; name: string; tagline: string | null; url: string | null;
-  oneLiner: string | null; angle: string | null; angleState: "ok" | "thin" | "missing";
+  oneLiner: string | null; angle: string | null; serves: string | null; angleState: "ok" | "thin" | "missing";
   category: string; founders: string; founderNames: string[]; votes: number; makerComments: number; createdAt: string;
   rank: number; tier: string; finalScore: number; upvoteScore: number; makerScore: number;
   upvotePoints: number; makerPoints: number; daysSince: number; daysLeft: number; closing: boolean;
@@ -44,7 +44,7 @@ export function buildLinks(website: string | null, makers: Maker[], companyLinke
   }
   return links;
 }
-export type FilteredOut = { postId: string; name: string; tagline: string | null; url: string | null; reason: string | null; votes: number; createdAt: string };
+export type FilteredOut = { postId: string; name: string; tagline: string | null; url: string | null; reason: string | null; serves: string | null; votes: number; createdAt: string };
 export type RunInfo = {
   lastGoodAt: string | null; lastGoodWasSnapshot: boolean; latestStatus: string | null; latestAt: string | null;
   latestStartedAt: string | null; latestNote: string | null; latestError: string | null; newLaunches: number | null; refreshed: number | null; running: boolean;
@@ -55,7 +55,7 @@ export type Dashboard = { items: Item[]; filteredOut: FilteredOut[]; pending: nu
 export async function getDashboard(): Promise<Dashboard> {
   const rows = await q(
     `SELECT l.post_id, l.slug, l.name, l.tagline, l.url, l.website, l.votes_count, l.created_at, l.first_seen_at, l.makers, l.category,
-            r.relevant, r.reason, m.maker_comment_count, a.one_liner, a.angle, a.status AS angle_status
+            r.relevant, r.reason, r.serves, m.maker_comment_count, a.one_liner, a.angle, a.status AS angle_status
      FROM launches l JOIN relevance r ON r.post_id = l.post_id
      LEFT JOIN maker_comments m ON m.post_id = l.post_id
      LEFT JOIN angles a ON a.post_id = l.post_id
@@ -64,7 +64,7 @@ export async function getDashboard(): Promise<Dashboard> {
   const ready = rows.filter((r) => r.relevant && r.maker_comment_count !== null);
   const pending = rows.filter((r) => r.relevant && r.maker_comment_count === null).length;
   const filteredOut: FilteredOut[] = rows.filter((r) => !r.relevant).map((r) => ({
-    postId: r.post_id, name: r.name, tagline: r.tagline, url: r.url, reason: r.reason, votes: r.votes_count,
+    postId: r.post_id, name: r.name, tagline: r.tagline, url: r.url, reason: r.reason, serves: r.serves ?? null, votes: r.votes_count,
     createdAt: new Date(r.created_at).toISOString(),
   })).sort((a, b) => b.votes - a.votes);
 
@@ -87,7 +87,7 @@ export async function getDashboard(): Promise<Dashboard> {
     const founderNames = [...new Set(makers.map((m) => cleanName(m.name)).filter(Boolean))];
     return {
       postId: s.postId, slug: r.slug, name: r.name, tagline: r.tagline, url: r.url,
-      oneLiner: r.one_liner ?? null, angle: r.angle ?? null,
+      oneLiner: r.one_liner ?? null, angle: r.angle ?? null, serves: r.serves ?? null,
       angleState: r.angle_status === "ok" ? "ok" : r.angle_status === "thin" ? "thin" : "missing",
       category: r.category, founders: founderNames.join(", ") || "Not listed", founderNames,
       votes: s.votes, makerComments: s.makerComments, createdAt: s.createdAt as string,

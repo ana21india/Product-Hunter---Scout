@@ -34,19 +34,29 @@ async function callJson(prompt: string, schema: unknown, thinking: unknown = { t
 
 const clip = (s: string | null | undefined, n: number) => (s ?? "").replace(/\s+/g, " ").slice(0, n);
 
-export type LaunchIn = { id: string; name: string; tagline: string | null; description: string | null };
+export type LaunchIn = { id: string; name: string; tagline: string | null; description: string | null; siteText?: string | null };
 
-// Decide, for each launch, whether it is a B2B tool for teams/companies in one of the four areas.
-export async function judgeRelevance(items: LaunchIn[]) {
-  const list = items.map((i) => `- id ${i.id} | ${i.name} | ${clip(i.tagline, 160)} | ${clip(i.description, 400)}`).join("\n");
-  const prompt = `You screen new Product Hunt launches for a partnerships manager at a B2B SaaS company (${KAVYA_PRODUCT}).
-She wants tools sold to teams or companies in one of these four areas: ${CATEGORIES.join("; ")}.
-For each launch decide "relevant" = true if it is a B2B / work tool for teams or companies in one of those areas.
-Mark false for consumer apps, personal or family messaging, games, entertainment, hardware, crypto, or tools with no team or work use.
-If the information is unclear but it could plausibly be a work tool for teams, mark true.
-"category" must be the single best fit of the four areas, or "None" when relevant is false.
-"reason" is one short plain sentence based only on the text given. Do not invent facts.
-Return one entry per launch, using the same id.
+export type Verdict = { id: string; relevant: boolean; category: string; audience: string; serves: string; reason: string };
+
+// The two-step relevance rule. Kavya looks for distribution partners: products whose customers are the same kind of people who would
+// buy async standups. Step 1: does it fit one of the four areas? Step 2: who uses it day to day (A one person, B individual professionals
+// inside a team workflow, C teams or managers)? Kept unless clearly personal or clearly outside the four areas.
+export async function judgeRelevance(items: LaunchIn[]): Promise<Verdict[]> {
+  const list = items
+    .map((i) => {
+      const site = i.siteText && i.siteText.length >= 300 ? i.siteText.replace(/\n/g, " ") : "";
+      return `- id ${i.id} | ${i.name} | Product Hunt: ${clip(i.tagline, 160)} ${clip(i.description, 400)}\n  Website: ${site || "not available or too short, so judge from the Product Hunt text and keep it if unclear"}`;
+    })
+    .join("\n\n");
+  const prompt = `You screen new Product Hunt launches for a partnerships manager at a B2B SaaS company that sells async standups to remote teams. She looks for distribution partners: products whose CUSTOMERS are the same kind of people who would buy async standups, so the two products can integrate, bundle or promote each other. She is NOT selling standups to the launch's own staff.
+
+Our customers are managers and team leads who run recurring check-ins for remote or distributed teams: engineering managers, product managers, scrum masters, project and program managers, founders and CTOs of remote-first companies, agency owners, people-ops leaders.
+
+Step 1. Which area does the product fit? Project management (planning, tracking, coordinating team work); HR tech (hiring, onboarding, performance, engagement); Developer productivity (code review, git, testing, CI/CD, coding assistants, engineering analytics); Team communication (chat, meetings, async updates, shared knowledge). If none, category = "None".
+Step 2. Who uses it day to day? audience = "A" one person for personal use (consumers, solo operators, students, job seekers, creators); "B" individual professionals working inside a team's workflow (for example developers reviewing teammates' code, recruiters in a hiring team); "C" teams or managers directly.
+relevant = true when category is not "None" AND audience is B or C. relevant = false ONLY when the product is clearly personal (A), or clearly outside the four areas, or is a model, API or infrastructure bought by an individual developer to build something else. If the evidence is unclear, keep it (relevant = true).
+Use the website text as the main evidence for who the customers are; the Product Hunt text may be short. Use only facts in the text given.
+Return one entry per launch with the same id: relevant, category, audience, serves (who buys and uses it, at most six words), reason (one sentence, say what in the text shows it).
 
 Launches:
 ${list}`;
@@ -58,12 +68,14 @@ ${list}`;
         id: { type: "STRING" },
         relevant: { type: "BOOLEAN" },
         category: { type: "STRING", enum: [...CATEGORIES, "None"] },
+        audience: { type: "STRING", enum: ["A", "B", "C"] },
+        serves: { type: "STRING" },
         reason: { type: "STRING" },
       },
-      required: ["id", "relevant", "category", "reason"],
+      required: ["id", "relevant", "category", "audience", "serves", "reason"],
     },
   };
-  return (await callJson(prompt, schema, { thinkingBudget: 0 })) as { id: string; relevant: boolean; category: string; reason: string }[];
+  return (await callJson(prompt, schema, { thinkingLevel: "low" })) as Verdict[];
 }
 
 // One-line description and outreach angle, grounded only in the supplied facts.

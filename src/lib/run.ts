@@ -1,7 +1,8 @@
 ﻿import { q } from "./db";
 import * as PH from "./ph";
-import { judgeRelevance, GEMINI_MODEL, CATEGORIES } from "./gemini";
+import { GEMINI_MODEL, CATEGORIES } from "./gemini";
 import { generateAngles } from "./angles";
+import { judgeLaunches } from "./relevance";
 
 const DAY = 864e5;
 const WINDOW = "interval '7 days'";
@@ -91,31 +92,9 @@ export async function runScout(opts: RunOpts): Promise<RunResult> {
       await q("DELETE FROM settings WHERE key='scan_state'");
     }
 
-    // Phase B: Gemini relevance check on launches in the window that have no verdict yet.
-    const unjudged = await q(
-      `SELECT l.post_id AS id, l.name, l.tagline, l.description FROM launches l LEFT JOIN relevance r ON r.post_id=l.post_id
-       WHERE r.post_id IS NULL AND l.created_at > now() - ${WINDOW}`,
-    );
-    log(`Relevance check: ${unjudged.length} launches`);
-    let geminiFailed = 0;
-    await pool(chunks(unjudged, 15), 4, async (batch) => {
-      try {
-        const out = await judgeRelevance(batch);
-        const byId = new Map(batch.map((b: any) => [b.id, b]));
-        const ok = out.filter((o) => byId.has(o.id));
-        if (!ok.length) return;
-        await q(
-          `INSERT INTO relevance (post_id, relevant, reason, model)
-           SELECT x.id, x.relevant, x.reason, $2 FROM jsonb_to_recordset($1::jsonb) AS x(id text, relevant boolean, reason text)
-           ON CONFLICT (post_id) DO UPDATE SET relevant=EXCLUDED.relevant, reason=EXCLUDED.reason, model=EXCLUDED.model`,
-          [JSON.stringify(ok), GEMINI_MODEL],
-        );
-        const cats = ok.filter((o) => o.relevant && (CATEGORIES as readonly string[]).includes(o.category));
-        if (cats.length)
-          await q(`UPDATE launches l SET category=x.category FROM jsonb_to_recordset($1::jsonb) AS x(id text, category text) WHERE l.post_id=x.id`, [JSON.stringify(cats)]);
-      } catch (e) { geminiFailed += batch.length; }
-    });
-    if (geminiFailed) notes.push(`Relevance check unavailable for ${geminiFailed} launches (will retry next run)`);
+    // Phase B: two-step relevance check (Product Hunt text first, then the product's own website) for launches without a verdict yet.
+    const rel = await judgeLaunches({ deadline: opts.deadlineMs ? runStartMs + opts.deadlineMs : undefined, log });
+    if (rel.failed) notes.push(`Relevance check unavailable for ${rel.failed} launches (will retry next run)`);
 
     // Phase D: refresh live upvotes and comment totals for relevant launches in the window not refreshed this run.
     const stale = await q(

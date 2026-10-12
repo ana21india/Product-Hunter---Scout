@@ -83,3 +83,9 @@ CREATE TABLE IF NOT EXISTS site_links (
   linkedin_company text,
   checked_at       timestamptz NOT NULL DEFAULT now()
 );
+
+-- 9. Audience and website evidence for the relevance check
+ALTER TABLE relevance ADD COLUMN IF NOT EXISTS audience text;
+ALTER TABLE relevance ADD COLUMN IF NOT EXISTS serves text;
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS site_text text;
+ALTER TABLE launches ADD COLUMN IF NOT EXISTS site_status text;
